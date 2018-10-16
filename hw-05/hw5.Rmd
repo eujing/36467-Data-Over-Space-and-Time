@@ -1,0 +1,221 @@
+---
+title: "36-467 Homework 3"
+author: "Eu Jing Chua"
+date: "September 17, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1
+
+The dates of the 4 leap days are as follows:
+```{r echo=FALSE}
+library(gstat)
+library(knitr)
+
+data(wind)
+kable(subset(wind, month == 2 & day == 29)[, c("day", "month", "year")],
+      caption = "Row numbers & Dates of leap days")
+wind <- subset(wind, !(month == 2 & day == 29))
+```
+
+## Question 2
+
+**Q2 a)**
+The mean wind speed on Jan 1 in Dublin is `r signif(mean(subset(wind, month == 1 & day == 1)[, "DUB"]), 5)`.
+
+**Q2 b)**
+The mean wind speed on Jan 1 at each location is as follows:
+```{r echo=FALSE}
+kable(colMeans(subset(wind, month == 1 & day == 1)[4:ncol(wind)]),
+      digits = 5,
+      caption = "Mean wind speed on 1st Jan at locations",
+      col.names = "Mean wind speed")
+```
+
+\newpage
+
+**Q2 c)**  
+```{r echo=FALSE}
+locations <- colnames(wind[4:ncol(wind)]) 
+cols <- rainbow(length(locations))
+
+wind.daily.mean <- matrix(ncol = length(locations), nrow = 365)
+colnames(wind.daily.mean) <- locations
+
+for (loc in locations) {
+    wind.daily.mean[, loc] <- na.omit(as.vector(with(
+        wind,
+        tapply(wind[[loc]], list(day, month), mean))))
+}
+
+plot(1:365, wind.daily.mean[, locations[1]],
+     xlab = "Day of Year", ylab = "Mean wind speed",
+     main = paste("Mean wind speed at locations across a year"),
+     type = "l", col = cols[1],
+     xlim = c(0, 470), ylim = c(3, 23))
+for (i in 2:length(locations)) {
+    lines(1:365, wind.daily.mean[, locations[i]], col = cols[i])
+}
+legend("bottomright",
+       legend = locations, col = cols, lty = 1)
+```
+
+\newpage
+
+**Q2 d)**  
+```{r echo=FALSE}
+plot(1:365, wind.daily.mean[, "DUB"],
+     xlab = "Day of Year", ylab = "Mean wind speed",
+     main = paste("Mean wind speed at locations across a year"),
+     type = "l", col = "blue",
+     xlim = c(0, 470), ylim = c(5, 16))
+lines(1:365,
+     na.omit(as.vector(with(
+        wind,
+        tapply(VAL, list(day, month), mean)))),
+     col = "red")
+legend("bottomright",
+       legend = c("DUB", "VAL"), col = c("blue", "red"), lty = 1)
+```
+
+Both mean wind speeds at Dublin and Valencia seem to follow a seasonal sinusoidal pattern where the period looks like a year (365 days), with the peak at the start and end of a year and trough in the middle of the year. For both locations, the wind speeds seem to be roughly the same at the same points of time throughout the year, with Valencia having just slighly higher wind speeds sometimes.
+
+## Question 3
+
+**Q3 a)**  
+```{r echo=FALSE}
+plot(subset(wind, day == 1 & month == 1)[, "year"],
+     subset(wind, day == 1 & month == 1)[, "DUB"] - wind.daily.mean[1, "DUB"],
+     xlab = "Year", ylab = "Deviation from mean",
+     main = "Plot of wind speed deviation at Dublin on Jan 1 against the years",
+     type = "o")
+abline(h = 0)
+```
+
+\newpage
+
+**Q3 b)**  
+```{r echo=FALSE}
+years <- subset(wind, day == 1 & month == 1)[, "year"]
+plot(years,
+     subset(wind, day == 1 & month == 1)[, locations[1]] - wind.daily.mean[1, locations[1]],
+     xlab = "Year", ylab = "Deviation from mean",
+     main = "Plot of wind speed deviation on Jan 1 against the years",
+     type = "l", col = cols[1], xlim = c(min(years), max(years) + 5))
+abline(h = 0)
+for (i in 2:length(locations)) {
+    lines(subset(wind, day == 1 & month == 1)[, "year"],
+         subset(wind, day == 1 & month == 1)[, locations[i]] - wind.daily.mean[1, locations[i]],
+         col = cols[i], type = "l")
+}
+legend("bottomright",
+       legend = locations, col = cols, lty = 1)
+```
+
+**Q3 c)**
+```{r echo=FALSE}
+wind.detrended <- matrix(nrow = nrow(wind), ncol = length(locations))
+colnames(wind.detrended) <- locations
+
+for (loc in locations) {
+    wind.detrended[, loc] = wind[, loc] - wind.daily.mean[, loc]
+}
+wind.detrended <- as.data.frame(wind.detrended)
+wind.detrended.summary <- apply(wind.detrended, 2, summary)
+
+kable(wind.detrended.summary[, 1:6], digits = 5,
+      caption = "Summaries of detrended wind speeds")
+kable(wind.detrended.summary[, 7:12], digits = 5)
+```
+
+## Question 4
+
+**Q4 a)**  
+```{r echo=FALSE}
+acf(wind.detrended$DUB, lag.max = 800,
+    type = "covariance", na.action = na.pass,
+    main = "Autocovariance of Wind Speeds in Dublin")
+```
+
+Compared to the auto-correlation plot in the previous homework, this auto-covariance plot lacks the obvious sinusoidal trend that was present in the previous one.
+
+**Q4 b)**  
+```{r echo=FALSE}
+ccf(wind.detrended$DUB, wind.detrended$SHA, lag.max = 800,
+    type = "covariance", na.action = na.pass,
+    main = "Autocovariance of Wind Speeds in Dublin")
+```
+
+Compared to the cross-correlation plot in the previous homework, this cross-covariance plot lacks the obvious sinusoidal trend that was present in the previous one.
+
+**Q4 c)**  
+```{r echo=FALSE}
+n <- 9 * 365
+Z <- matrix(c(wind.detrended[1:(n-1), "DUB"], wind.detrended[2:n, "SHA"]), ncol = 2)
+Y <- wind.detrended[2:n, "DUB"]
+wind.olp.dub.1.sha.0.beta <- solve(var(Z)) %*% cov(Z, Y)
+wind.olp.dub.1.sha.0.alpha <- mean(Y) - t(wind.olp.dub.1.sha.0.beta) %*% matrix(colMeans(Z), nrow = 2)
+result.coef <- c(wind.olp.dub.1.sha.0.alpha, wind.olp.dub.1.sha.0.beta)
+names(result.coef) <- c("Intercept", "X(t-1, DUB)", "X(t, SHA)")
+kable(result.coef, col.names = "Coefficients", digits = 5,
+      caption = "Model coefficients")
+```
+
+**Q4 d)**  
+```{r echo=FALSE}
+start.1975 <- (75-61) * 365 + 1
+end.1975 <- start.1975 + 364
+pred.1975 <- vector(length = 365)
+
+for (t in start.1975:end.1975) {
+    pred.1975[t - start.1975 + 1] <- wind.olp.dub.1.sha.0.alpha + 
+        matrix(c(wind.detrended[t-1, "DUB"], wind.detrended[t, "SHA"]), ncol = 2) %*%
+        wind.olp.dub.1.sha.0.beta
+}
+
+actual.1975 <- wind.detrended[start.1975:end.1975, "DUB"]
+plot(1:365, actual.1975,
+     xlab = "Day of Year", ylab = "Wind Speed",
+     main = "Plot of Predicted & Actual Wind Speed in Dublin across 1975",
+     type = "l", col = "blue", xlim = c(0, 450))
+lines(1:365, pred.1975, col = "red")
+legend("topright",
+       legend = c("Predicted", "Actual"),
+       col = c("red", "blue"), lty = 1)
+
+pred.1975.rms.error <- mean((actual.1975 - pred.1975)^2)^0.5
+```
+
+The root-mean-squared error is `r signif(pred.1975.rms.error, 5)`.
+
+
+**Q4 e)**  
+```{r echo=FALSE}
+start.1975 <- (75-61) * 365 + 1
+end.1975 <- start.1975 + 364
+pred.1975.unadj <- vector(length = 365)
+
+for (t in start.1975:end.1975) {
+    pred.1975.unadj[t - start.1975 + 1] <- wind.olp.dub.1.sha.0.alpha + 
+        matrix(c(wind[t-1, "DUB"], wind[t, "SHA"]), ncol = 2) %*%
+        wind.olp.dub.1.sha.0.beta
+}
+
+actual.1975.unadj <- wind[start.1975:end.1975, "DUB"]
+plot(1:365, actual.1975.unadj,
+     xlab = "Day of Year", ylab = "Wind Speed",
+     main = "Plot of Predicted & Actual Wind Speed in Dublin across 1975",
+     type = "l", col = "blue", xlim = c(0, 450))
+lines(1:365, pred.1975.unadj, col = "red")
+legend("topright",
+       legend = c("Predicted", "Actual"),
+       col = c("red", "blue"), lty = 1)
+
+pred.1975.unadj.rms.error <- mean((actual.1975.unadj - pred.1975.unadj)^2)^0.5
+```
+
+The root-mean-squared error is `r signif(pred.1975.unadj.rms.error, 5)`.

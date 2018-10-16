@@ -1,0 +1,269 @@
+---
+title: "36-467 Homework 2"
+author:
+- 'Name: Eu Jing Chua'
+- 'Andrew ID: eujingc'
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, autodep = TRUE, cache.comments = TRUE)
+```
+```{=latex}
+\newcommand{\matr}[1]{\mathbf{#1}}
+\newcommand{\E}{\mathbb{E}}
+```
+
+## Question 1
+
+```{r echo=FALSE}
+kyoto <- read.csv("http://www.stat.cmu.edu/~cshalizi/dst/18/data/kyoto.csv")
+kyoto.cleaned <- na.omit(kyoto)
+
+kyoto.spline <- with(kyoto.cleaned, smooth.spline(x = Year.AD, y = Flowering.DOY))
+```
+
+**Q1 a)** $\lambda$ is $`r kyoto.spline$lambda`$
+
+```{r}
+smoother.matrix <- function(a.spline, x) {
+    n <- length(x)
+    w <- matrix(0, nrow=n, ncol=n)
+    for (i in 1:n) {
+        y <- rep_len(0, n)  # Equivalent to rep(0, length.out=n) but faster
+        y[i] <- 1
+        w[,i] <- fitted(smooth.spline(x, y, lambda=a.spline$lambda))
+    }
+    return(w)
+}
+
+kyoto.spline.w <- smoother.matrix(kyoto.spline, kyoto.cleaned$Year.AD)
+dim(kyoto.spline.w)
+all.equal(kyoto.spline$lev, diag(kyoto.spline.w))
+```
+
+**Q1 b)** The dimensions of the resulting matrix is 827 x 827, which is correct as we have 827 data points. The diagonal of the resulting matrix also matches that of the original fitted spline.  
+
+**Q1 c)** If we consider 
+\begin{align}
+  \matr{w} &= \begin{bmatrix}
+    \vec{w}_{1} \\
+    \vec{w}_{2} \\
+    \vdots \\
+    \vec{w}_{n}
+  \end{bmatrix}
+\end{align}
+where $\vec{w}_{i}$ is a row vector of $\matr{w}$, then for each $\vec{w}_{i}$, note that $\vec{w}^{T}_{i} \cdot \vec{e}_{j} = w_{i,j}$  
+
+Hence
+
+\begin{align}
+\matr{w} \vec{e}_{j} &= \begin{bmatrix}
+  w_{1,j} \\
+  w_{2,j} \\
+  \vdots \\
+  w_{n,j}
+\end{bmatrix}
+\end{align}
+which is just the $j^{th}$ column of the matrix $\matr{w}$.  
+
+Originally when we produced a spline from Flowering Day-of-Year (DOY) against Year (AD), the values of the spline is equivalent to taking $\matr{w}\matr{x}$, where $\matr{w}$ is the smoother matrix we are interested in and $\matr{x}$ is the Flowering DOY. If now we take $\matr{w}\vec{e}_{j}$, it will be the same as seeing the response of the same spline on an impulse represented by $\vec{e}_{j}$, or the fitted y-values. Following from above, we can then find the $j^{th}$ column of $\matr{w}$ by seeing the resulting fit from applying the same spline with the same $\lambda$ on the impulse $\vec{e}_{j}$.  
+
+**Q1 d)** 
+
+```{r echo=FALSE}
+kyoto.spline.w.eigen = eigen(kyoto.spline.w)
+plot(1:length(kyoto.spline.w.eigen$values), kyoto.spline.w.eigen$values,
+     xlab = "Index", ylab = "Eigenvalues",
+     main = "Plot of the sorted eigenvalues of the smoother matrix")
+
+```
+
+- There are `r length(kyoto.spline.w.eigen$values)` eigenvalues in total.
+- `r sum(kyoto.spline.w.eigen$values > 0.95)` of the eigenvalues are greater than 0.95
+- `r sum(kyoto.spline.w.eigen$values > 0.1)` of the eigenvalues are greater than 0.1
+- `r sum(kyoto.spline.w.eigen$values > 0.01)` of the eigenvalues are greater than 0.01
+- `r sum(kyoto.spline.w.eigen$values == 0)` of the eigenvalues exactly 0  
+
+**Q1 e)** 
+
+```{r echo=FALSE}
+colors <- rainbow(10)
+plot(1:827, kyoto.spline.w.eigen$vectors[,1],
+     ylim = c(-0.09, 0.09), xlim = c(0, 1000), col = colors[1], type = "l", 
+     xlab = "Position", ylab = "Eigenvectors of smoothing matrix")
+
+for (i in 2:10) {
+  lines(1:827, kyoto.spline.w.eigen$vectors[,i], col = colors[i])
+}
+
+legend("bottomright",
+       legend = sprintf("i = %d", 1:10),
+       col = colors, lty = "solid", cex = 0.7)
+```
+
+The eigenvectors seem to capture lower-frequency sinusoidal patterns well.
+
+**Q1 f)**
+
+```{r echo=FALSE}
+colors <- rainbow(10)
+plot(1:827, kyoto.spline.w.eigen$vectors[,818],
+     ylim = c(-0.05, 0.05), xlim = c(0, 1000), col = colors[1], type = "l", 
+     xlab = "Position", ylab = "Eigenvectors of smoothing matrix")
+
+for (i in 819:827) {
+  lines(1:827, kyoto.spline.w.eigen$vectors[,i], col = colors[i - 818])
+}
+
+legend("bottomright",
+       legend = sprintf("i = %d", 819:827),
+       col = colors, lty = "solid", cex = 0.7)
+```
+
+The last ten eigenvectors seem to capture much higher frequency damped sinusoidal patterns.  
+
+**Q1 g)** Patterns that are oscillatory in nature with low frequencies, or repeat themselves over periods of time will tend to show up in the estimate of the trend. Patterns that are noisy in nature with no particular structure will show up in the residuals.  
+
+**Q1 h)**  
+```{r echo=FALSE}
+colors <- rainbow(10)
+plot(kyoto.cleaned$Year.AD, kyoto.spline.w.eigen$vectors[,1],
+     ylim = c(-0.09, 0.09), xlim = c(800, 2250), col = colors[1], type = "l", 
+     xlab = "Year (AD)", ylab = "Eigenvectors of smoothing matrix")
+
+for (i in 2:10) {
+  lines(kyoto.cleaned$Year.AD, kyoto.spline.w.eigen$vectors[,i], col = colors[i])
+}
+
+legend("bottomright",
+       legend = sprintf("i = %d", 1:10),
+       col = colors, lty = "solid", cex = 0.7)
+```
+
+It does not change the description of the patterns much, other than how the oscillations look relatively smoother now.
+
+**Q1 i)**  
+```{r echo=FALSE}
+contour(x = 1:827, y = 1:827, z = kyoto.spline.w, nlevels = 50, lty = 2, labcex = 1.5,
+        xlab = "ith Row", ylab = "jth Column",
+        main = "Contour Plot of Entries in the Smoother Matrix w")
+```
+
+If we observe the contours around the diagonal of the plot, we can see that for a given Year (AD), the nearer years have closer weights to the given year itself, as seen by the higher density of contour lines. This is in comparison to further years which are sparser in contour lines and are lesser in weight than the given year.  
+
+## Question 2
+
+**Q2 a)** The degrees of freedom is $df = tr(\matr{w}) = \sum_{i=1}^{n}\frac{1}{k} = \frac{n}{k}$
+
+**Q2 b)** The degrees of freedom is also $\frac{n}{k}$.
+
+**Q2 c)** The degrees of freedom is also $\frac{n}{k}$.
+
+
+## Question 3
+
+**Q3 a)**  
+\begin{align}
+  \E[\hat{\epsilon}(t)] &= \E[X(t) - \hat{\mu}(t)] \\
+    &= \E[X(t)] - \E[\hat{\mu}(t)] \\
+    &= \mu(t) - \frac{1}{3} \sum_{i=t-1}^{t+1}\E[X_{i}] \\
+    &= \mu(t) - \frac{1}{3} \sum_{i=t-1}^{t+1}\mu(i) \\
+    &= \frac{2\mu(t) - \mu(t-1) - \mu(t+1)}{3}
+\end{align}
+
+**Q3 b)**
+\begin{align}
+  Var[\hat{\epsilon}(t)] &= Var[X(t) - \hat{\mu}(t)] \\
+    &= Var[X(t) - \frac{1}{3}X(t-1) -  \frac{1}{3}X(t) -  \frac{1}{3}X(t+1)] \\
+    &= Var[\frac{2}{3}\epsilon(t) - \frac{1}{3}\epsilon(t-1) -  \frac{1}{3}\epsilon(t+1)] \\
+    &= \frac{4}{9}Var[\epsilon(t)] + \frac{1}{9}Var[\epsilon(t-1)] + \frac{1}{9}Var[\epsilon(t+1)] \\
+    &- \frac{4}{9}Cov[\epsilon(t), \epsilon(t-1)] - \frac{4}{9}Cov[\epsilon(t), \epsilon(t+1)] + \frac{2}{9}Cov[\epsilon(t-1), \epsilon(t+1)]
+\end{align}
+
+**Q3 c)**
+\begin{align}
+  Cov[\hat{\epsilon}(t), \hat{\epsilon}(t+1)] &= Cov[X(t) - \hat{\mu}(t), X(t+1) - \hat{\mu}(t+1)] \\
+    &= Cov \left[ X(t) - \frac{1}{3} \sum_{i=t-1}^{t+1}X_i, X(t+1) - \frac{1}{3} \sum_{i=t}^{t+2}X_i \right] \\
+    &= \frac{1}{9} Cov \left[ 2 \cdot X(t) - X(t-1) - X(t+1), 2 \cdot X(t+1) - X(t) - X(t+2) \right] \\
+    &= \frac{1}{9} Cov \left[ 2 \cdot \epsilon(t) - \epsilon(t-1) - \epsilon(t+1), 2 \cdot \epsilon(t+1) - \epsilon(t) - \epsilon(t+2) \right] \\
+    &= -\frac{2}{9} \left( Var[\epsilon(t)] + Var[\epsilon(t+1)] \right) \\
+    &+ \frac{1}{9} ( 
+        5 \cdot Cov[\epsilon(t), \epsilon(t+1)] - 2 \cdot Cov[\epsilon(t), \epsilon(t+2)] - 2 \cdot Cov[\epsilon(t-1), \epsilon(t+1)] \\
+        &+ Cov[\epsilon(t-1), \epsilon(t)] + Cov[\epsilon(t-1), \epsilon(t+2)] + Cov[\epsilon(t+1), \epsilon(t+2)] 
+      )
+\end{align}
+
+**Q3 d)**
+\begin{align}
+  Cov[\hat{\epsilon}(t), \hat{\epsilon}(t+1)] &= \frac{1}{9} Cov \left[ 2 \cdot \epsilon(t) - \epsilon(t-1) - \epsilon(t+1), 2 \cdot \epsilon(t+1) - \epsilon(t) - \epsilon(t+2) \right] \\
+    &= \frac{1}{9} \left[ -Cov[2 \cdot \epsilon(t), \epsilon(t)] -Cov[\epsilon(t+1), 2 \cdot \epsilon(t+1)]  \right] \\
+    &= -\frac{2}{9} \left[ Var[\epsilon(t)] + Var[\epsilon(t+1)] \right] \\
+    &= -\frac{4}{9} \sigma^{2}
+\end{align}
+
+There is correlation between the de-trended residuals as the smoothed line implicitly contains correlation between the overlaps of neighbouring values used in the moving average. This correlation then carries over into the de-trended residuals as the observed value simply subtracts the moving average to get the de-trended residual.  
+
+## Question 4
+
+**Q4 a)** 
+\begin{align}
+  \Delta(t) &= X(t) - X(t-1) \\
+    &= \mu(t) + \epsilon(t) - \mu(t-1) - \epsilon(t-1) \\
+    &= (\mu(t) - \mu(t-1)) + (\epsilon(t) - \epsilon(t-1))
+\end{align}
+
+Under the same "smooth trend" assumptions, we can assume that $\mu(t) \approx \mu(t-1)$, hence $\Delta(t) \approx \epsilon(t) - \epsilon(t-1)$. It only makes sense that $\Delta(t)$ can be used to estimate $\epsilon(t)$ if it is given that we already know $\epsilon(t-1)$, as $\epsilon(t) \approx \Delta(t) + \epsilon(t-1)$.  
+
+**Q4 b)**  
+\begin{align}
+\E[\Delta(t)] &= \E[(\mu(t) - \mu(t-1)) + (\epsilon(t) - \epsilon(t-1))] \\
+  &= \E[\mu(t)] - \E[\mu(t-1)] + \E[\epsilon(t)] - \E[\epsilon(t-1)] \\
+  &= \mu(t) - \mu(t-1)
+\end{align}
+
+\begin{align}
+  Var[\Delta(t)] &= Var[(\mu(t) - \mu(t-1)) + (\epsilon(t) - \epsilon(t-1))] \\
+    &= Var[\epsilon(t) - \epsilon(t-1)] \\
+    &= Var[\epsilon(t)] + Var[\epsilon(t-1)] - 2 \cdot Cov[\epsilon(t), \epsilon(t-1)]
+\end{align}
+
+**Q4 c)** If we assume that $\mu(t)$ changes slowly across all $t$, then $\E[\Delta(t)] \approx 0, \forall t$.   
+$Var[\Delta(t)]$, as shown above, also does not depend on $\mu$ and only depends on the variances and covariances of $\epsilon$. Hence, $\Delta(t)$ seems to be de-trended as it does not have any dependence on $\mu$, the assumed underlying trend.  
+
+**Q4 d)** 
+\begin{align}
+  Cov[\Delta(t), \Delta(t+1)] &= Cov[(\mu(t) - \mu(t-1)) + (\epsilon(t) - \epsilon(t-1)), (\mu(t+1) - \mu(t)) + (\epsilon(t+1) - \epsilon(t))] \\
+    &= Cov[\epsilon(t) - \epsilon(t-1), \epsilon(t+1) - \epsilon(t)] \\
+    &= Cov[\epsilon(t), \epsilon(t+1)] - Var[\epsilon(t)] - Cov[\epsilon(t-1), \epsilon(t+1)] + Cov[\epsilon(t-1), \epsilon(t)]
+\end{align}
+
+**Q4 e)**
+\begin{align}
+  Cov[\Delta(t), \Delta(t+1)] &= Cov[\epsilon(t), \epsilon(t+1)] - Var[\epsilon(t)] - Cov[\epsilon(t-1), \epsilon(t+1)] + Cov[\epsilon(t-1), \epsilon(t)] \\
+    &= -Var[\epsilon(t)] \\
+    &= -\sigma^{2}
+\end{align}
+
+**Q4 f) i)**
+\begin{align}
+\eta(t) &= X(t) - X(t-1) = \Delta(t)
+\end{align}
+
+**Q4 f) ii)**
+\begin{align}
+Cov[X(t), X(t-1)] &= Cov[X(t-1) + \eta(t), X(t-1)] \\
+  &= Var[X(t-1)] + Cov[\eta(t), X(t-1)] \\
+  &= Var[X(0) + \sum_{i=1}^{t-1}\eta(i)] + Cov[\eta(t), X(0) + \sum_{i=1}^{t-1}\eta(i)] \\
+  &= Var[X(0)] + \sum_{i=1}^{t-1}Var[\eta(i)] + 2 \cdot Cov[X(0), \sum_{i=1}^{t-1}\eta(i)] + Cov[\eta(t), X(0)] \\
+  &= (t-1) \cdot Var[\eta] + Var[X(0)] + 2 \cdot \sum_{i=1}^{t-1} Cov[X(0), \eta(i)] + Cov[\eta(t), X(0)] \\
+  &= (t-1) \cdot Var[\eta], \text{if we assume \(X(0)\) is deterministic or known} \\
+  &\ne 0
+\end{align}
+
+The $\epsilon$'s are uncorrelated to the $\eta$'s.  
+As we can see above, there is non-zero correlation between adjacent steps, $X(t)$ and $X(t-1)$ in a random walk.  
+However, when we de-trend by taking the differences between adjacent steps, the difference value $\Delta(t) = \eta(t)$ is uncorrelated with each other from the assumption of a random walk process. This results in a de-trend that does not have implicit correlation as compared to the previous smoothing methods.

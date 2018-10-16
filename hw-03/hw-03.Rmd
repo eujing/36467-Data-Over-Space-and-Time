@@ -1,0 +1,249 @@
+---
+title: "36-467 Homework 3"
+author: "Eu Jing Chua"
+date: "September 17, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1
+```{r echo=FALSE}
+library(knitr)
+data <- read.csv("http://www.stat.cmu.edu/~cshalizi/dst/18/hw/03/soccomp.irep1.csv")
+```
+
+**Q1 a)**  
+The earliest date is `r sort(data$Time)[1]`CE, while the most recent is `r sort(data$Time)[length(data$Time)]`CE. The median date is `r median(data$Time)`CE.
+
+
+**Q1 b)**  
+```{r echo=FALSE}
+kable(
+  apply(data[, 4:12], MARGIN = 2, summary),
+  digits = 3)
+```
+
+
+**Q1 c)**  
+These numbers are not of the actual population because it is highly improbable that the total populations and capital sizes were of sizes less than 10 each. Also, the mean and median of both variables are reasonably close to think that the distribution could be symmetric without much skew. However, this is unrealistic and population distributions tend to be skewed right.  
+
+**Q1 d)**  
+The transformation might be a log (base 10) of the original population sizes. After reversing the log transform, we get more sensible summaries:  
+```{r echo=FALSE}
+kable(
+  apply(10**(data[, c("PolPop", "CapPop")]), MARGIN = 2, summary),
+  digits = 3)
+```
+
+**Q1 e)**
+```{r echo=FALSE}
+data.cov <- var(data[, 4:12])
+kable(
+  data.cov,
+  digits = 3,
+  caption = "Covariances between the complexity measures")
+```
+
+**Q1 f)**
+The correlations between the complexity measures are:  
+```{r echo=FALSE}
+data.cor <- cor(data[, 4:12])
+kable(
+  data.cor,
+  digits = 3,
+  caption = "Correlations between the complexity measures")
+
+```
+
+## Question 2
+
+```{r echo=FALSE}
+data.pca <- prcomp(data[, 4:12], center = TRUE, scale. = TRUE)
+```
+
+
+**Q2 a)**  
+It makes sense to scale the variables going in to PCA to all have variance 1 as they are all measures of different things and quantities with possibly different units. Scaling and centering these variables then lets us compare the PC coefficients with more ease.  
+
+**Q2 b)**  
+```{r echo=FALSE}
+data.total.sd <- sum((data.pca$sdev[1:9])^2)
+data.cum.sd <- lapply(1:9, FUN = function(i) sum((data.pca$sdev[1:i])^2) / data.total.sd)
+
+plot(
+  1:9,
+  data.cum.sd,
+  xlab = "Principal Component", ylab = "R^2", type = "o", lty = 1,
+  main = "Plot of R^2 from using PC1 to PC i"
+)
+
+```
+
+By using all 9 principal components, we do not lose any information and are simply projecting the existing data onto new orthogonal coordinates, so this projection should still fully capture all the variance of the original data.  
+To capture 75% of the variance, just using the $1^{st}$ PC is enough. For 90%, we would need to use at least 4 PC's.
+
+**Q2 c)**  
+```{r echo=FALSE}
+kable(
+  data.pca$rotation[, 1:3],
+  caption = "First 3 Principal Component Vectors",
+  digits = 3
+)
+```
+
+**Q2 d)**  
+As each variable is weighed roughly the same in PC1, a polity that has high complexity measures across the board will get a high score on PC1, while one with low scores across the board will get a low score on PC1.  
+
+**Q2 e)**  
+Polities that have small populations but have high measures of writing, texts, and money score higher scores on PC2, while those with larger populations but low measures of writing, texts and money score lower.
+
+## Question 3
+
+**Q3 a)**  
+```{r echo=FALSE}
+data$PC1.score <- data.pca$x[, 1]
+plot(
+  PC1.score ~ Time, data = data,
+  xlab = "Year (CE)", ylab = "PC1 Score", main = "Plot of PC1 scores against Year (CE)"
+)
+```
+
+As time progressed, the PC1 score of polities tended to increase, but so did the spread of the PC1 score.  
+
+**Q3 b)**  
+```{r echo=FALSE}
+areas <- c("Cahokia", "Kachi Plain", "Latium", "Middle Yellow River Valley", "Niger Inland Delta", "Susiana")
+
+par(mfrow = c(2, 3))
+for (a in areas) {
+  area.data = subset(data, NGA == a)
+  plot(
+    PC1.score ~ Time, data = area.data,
+    xlab = "Year (CE)", ylab = "PC1 Score", main = a
+  )
+}
+```
+
+- **Cahokia**: The few data points seem to indicate a rough non-linear positively increasing of PC1 score, up to the late 1000's where it might have dropped.  
+- **Kachi Plain**: There seems to be a rough positively increasing trend of PC1 score that seems linear, with much more data collected nearer to the 2000's.  
+- **Latium**: There seemed to be a rough positively increasing trend of PC1 score that seemed linear, up till around 500 CE, where the PC1 scores seemed to drop but steadily rise again.  
+- **Middle Yellow River Valley**:  There seems to be a rough positively increasing trend of PC1 score that seems linear.  
+- **Niger Inland Delta**:  There seems to be a rough positively increasing trend of PC1 score that seems linear.
+- **Susuana**:  There seems to be a rough positively increasing trend of PC1 score that seems linear.  
+
+
+**Q3 c)**  
+The common pattern seems to be that the PC1 score tends to increase over time, in general, for all 6 regions.  
+
+**Q3 d)**  
+This increasing of PC1 score over time for the polities indicates that all 9 of their complexity measures tended to increase over time.
+
+
+## Question 4
+
+**Q4 a)**  
+The correlation between scores on PC1 and PC2 is $1.54 \times 10^{-14}$.  
+
+**Q4 b)**  
+The theoretical correlation should be 0. The difference between the theorical and calculated value is very small, and hence is not a cause for concern.  
+
+**Q4 c)**  
+```{r echo=FALSE}
+data$PC2.score <- data.pca$x[, 2]
+
+plot(
+  PC1.score ~ PC2.score, data = data,
+  xlab = "PC2 Score", ylab = "PC1 Score",
+  main = "Plot of PC1 against PC2 Scores"
+)
+```
+
+There seems to be two clusters in the plot, one with high PC1 and PC2 scores, and the other with low PC1 and PC2 scores.  
+
+**Q4 d)**  
+The existence of these two clusters from the plot indicates that the two PCs are not statistically independent of each other, as if PC1 is high, it is more likely for PC2 to be high too etc. Given that the correlations were very close to 0, we still cannot assume that the two PCs are independent soley from this fact; we would have to make an assumption that the variables were jointly distributed with a multivariate normal distribution. In this case, it appears such an assumption would be invalid.  
+
+## Question 5
+
+**Q5 a)**
+```{r echo=FALSE}
+data.irep.all <- read.csv("http://www.stat.cmu.edu/~cshalizi/dst/18/hw/03/soccomp.csv")
+data.irep.19 <- data.irep.all[data.irep.all$irep == 19, ]
+data.irep.19.pca <- prcomp(data.irep.19[, 4:12], center = TRUE, scale. = TRUE)
+kable(
+  data.irep.19.pca$rotation[, 1:3],
+  caption = "First 3 Principal Component Vectors",
+  digits = 3
+)
+```
+
+My interpretations would not differ much from those in Q2 d) and e).
+
+**Q5 b)**
+```{r echo=FALSE}
+data.pca.irep.all.PCs <- lapply(
+  split(data.irep.all, data.irep.all$irep),
+  function(df) {
+    prcomp(df[, 4:12], center = TRUE, scale. = TRUE)$rotation[, 1:3]
+  })
+
+data.pca.irep.all.PCs.mean <- Reduce(
+  x = data.pca.irep.all.PCs, function(s1, s2) s1 + s2) / 20
+
+data.pca.irep.all.PCs.var <- Reduce(
+  x = lapply(
+    data.pca.irep.all.PCs,
+    function(irep.PCs) return ((irep.PCs - data.pca.irep.all.PCs.mean) ^ 2)),
+  f = function(s1, s2) s1 + s2) / 19
+
+data.pca.irep.all.PCs.stderr <- (data.pca.irep.all.PCs.var / 20) ^ 0.5
+
+kable(
+  data.pca.irep.all.PCs.mean,
+  caption = "Mean of First 3 PCs", digits = 3)
+
+kable(
+  data.pca.irep.all.PCs.stderr,
+  caption = "Standard Errors of First 3 PCs", digits = 5)
+```
+
+**Q5 c)**  
+My interpretations would not differ much from those in Q2 d) and e).  
+
+**Q5 d)**  
+```{r echo=FALSE}
+areas <- c("Cahokia", "Kachi Plain", "Latium", "Middle Yellow River Valley", "Niger Inland Delta", "Susiana")
+
+par(mfrow = c(1, 1))
+
+PC1.scores <- data.frame(row.names = 1:(nrow(data.irep.all) / 20))
+for (i in 1:20) {
+  data.irep <- data.irep.all[data.irep.all$irep == i, 4:12]
+  PC1.scores[[i]] <- prcomp(data.irep, scale. = TRUE, center = TRUE)$x[, 1]
+}
+PC1.scores.sd <- apply(PC1.scores, MARGIN = 1, FUN = sd)
+PC1.scores.mean <- rowMeans(PC1.scores)
+                          
+for (a in areas) {
+  idx <- which(data$NGA == a)
+  area.mean <- PC1.scores.mean[idx]
+  area.sd <- PC1.scores.sd[idx]
+  
+  plot(
+    data[idx, "Time"], area.mean,
+    xlab = "Year (CE)", ylab = "PC1 Score",
+    main = paste("Plot of mean PC1 score of", a, "against Year (CE)", collapse = " "),
+    ylim = c(min(area.mean - 2 * area.sd), max(area.mean + 2 * area.sd))
+  )
+  arrows(
+    x0 = data[idx, "Time"], x1 = data[idx,"Time"],
+    y0 = area.mean - 2 * area.sd,
+    y1 = area.mean + 2 * area.sd,
+    angle = 90, length = 0.05, code = 3
+  )
+}
+```
+

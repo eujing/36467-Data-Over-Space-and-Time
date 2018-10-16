@@ -1,0 +1,220 @@
+---
+title: "36-467 Homework 6"
+author: "Eu Jing Chua"
+date: "18 October, 2018"
+header-includes:
+   - \usepackage{amsmath}
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+\newcommand{\matr}[1]{\mathbf{#1}}
+\newcommand{\E}{\mathbb{E}}
+
+## Question 1
+
+**Q1 a)**
+
+\begin{align}
+x_t &= b x_{t-1} \\
+    &= b^2 x_{t-2} \\
+    &= b^{t} x_{0}
+\end{align}
+
+Then we can see that $\lim_{t \to \infty} x_t = \lim_{t \to \infty} b^t x_0 = 0, |b| < 1$
+
+
+**Q1 b)**  
+
+By a similar argument as above, note that $x_t = b^t x_0$.  
+Then we can see that:
+
+\begin{align}
+\lim_{t \to \infty} x_t &= \lim_{t \to \infty} b^t x_0, b > 1 \\
+    &=
+    \begin{cases}
+        -\infty,& x_0 < 0 \\
+        \infty,& x_0 > 0 \\
+    \end{cases}
+\end{align}
+
+**Q1 c)**
+If $b < -1$, then $x_t$ will not have a limit as it will alternate between positive and negative values depending on whether t is even or odd. The answer does not depend on $x_0$, unless $x_0 = 0$.
+
+
+## Question 2
+
+**Q2 a)**
+\begin{align}
+b y_t &= b x_t - \frac{ba}{1 - b} \\
+    &= a + b x_t - a - \frac{ba}{1 - b} \\
+    &= x_{t + 1} - \frac{a - ba + ba}{1 - b} \\
+    &= x_{t + 1} - \frac{a}{1 - b} \\
+    &= y_{t + 1}, b \ne 1
+\end{align}
+
+**Q2 b)**
+Since $x_t = y_t + \frac{a}{1-b}$,  
+
+\begin{align}
+\lim_{t \to \infty} x_t &= \lim_{t \to \infty} y_t + \frac{a}{1-b} \\
+    &= \lim_{t \to \infty} b^t y_0 + \frac{a}{1-b} \\
+    &= \frac{a}{1 - b}, |b| < 1
+\end{align}
+
+**Q2 c)**
+When $b > 0$,
+
+\begin{align}
+\lim_{t \to \infty} x_t &= \lim_{t \to \infty} y_t + \frac{a}{1-b} \\
+    &= \lim_{t \to \infty} b^t y_0 + \frac{a}{1-b} \\
+    &=
+    \begin{cases}
+        -\infty,& x_0 < \frac{a}{1-b} \\
+        \infty,& x_0 > \frac{a}{1-b} \\
+    \end{cases}
+\end{align}
+
+
+## Question 3
+
+**Q3 a)**
+Since the eigenvalues of $\matr{b}$ form a basis, we can write $x_0 = c_1 \vec{v_1} + c_2 \vec{v_2}$, where $c_1, c_2 \in \mathbb{C}$
+
+Since $\vec{x_t} = \matr{b}^t \vec{x_0}$,
+
+\begin{align}
+\vec{x_t} &= \matr{b}^t \left( c_1 \vec{v_1} + c_2 \vec{v_2} \right) \\
+    &= \matr{b}^t c_1 \vec{v_1} + \matr{b}^t c_2 \vec{v_2} \\
+    &= c_1 \matr{b}^t \vec{v_1} + c_2 \matr{b}^t \vec{v_2} \\
+    &= c_1 \lambda_1^t \vec{v_1} + c_2 \lambda_2^t \vec{v_2}
+\end{align}
+
+**Q3 b)**
+When $|\lambda_i| < 1$,
+
+\begin{align}
+\lim_{t \to \infty} \vec{x_t} &= \lim_{t \to \infty} c_1 \lambda_1^t \vec{v_1} + c_2 \lambda_2^t \vec{v_2} \\
+    &= \vec{0}
+\end{align}
+
+**Q3 c)**
+When $\lambda_1 > 0$ and $|\lambda_2| < 0$, the component of $\vec{x_0}$ in the direction of $\vec{v_1}$ grows in magnitude, while the component in the direction of $\vec{v_2}$ shrinks in magnitude, as $t \to \infty$.
+
+
+## Question 4
+
+**Q4 a)**  
+```{r echo=FALSE}
+library(expm)
+b.mat <- matrix(c(0.5, -0.5, 0.5, 0.5), nrow = 2, ncol = 2)
+x.0 <- matrix(c(1, 2), nrow = 2)
+x.t <- sapply(1:20, function(t) (b.mat %^% t) %*% x.0)
+plot(1:20, x.t[1, ], type = "l", lty = 1,
+     xlab = "t", ylab = "Coordinate",
+     main = "Plot of coordinates against t",
+     ylim = c(min(x.t), max(x.t)))
+lines(1:20, x.t[2, ], lty = 2)
+legend("topright", legend = c("1st coord", "2nd coord"),
+       lty = c(1, 2))
+```
+
+Both coordinates seem to undergo oscillation that is exponentially damped.
+
+**Q4 b)**
+```{r echo=FALSE}
+library(knitr)
+
+kable(b.mat, caption = "Matrix b (b.mat)")
+lambda.1 <- complex(real = 1/2, imaginary = 1/2)
+lambda.2 <- complex(real = 1/2, imaginary = -1/2)
+kable(lambda.1, col.names = "Eigenvalue 1 (lambda.1)")
+kable(lambda.2, col.names = "Eigenvalue 2 (lambda.2)")
+
+v.1 <- matrix(c(complex(real = 0, imaginary = -1),
+                complex(real = 1, imaginary = 0)), nrow = 2) / sqrt(2)
+v.2 <- matrix(c(complex(real = 0, imaginary = 1),
+                complex(real = 1, imaginary = 0)), nrow = 2) / sqrt(2)
+kable(signif(v.1, 3), col.names = "Eigenvector $v_1$ (v.1)")
+kable(signif(v.2, 3), col.names = "Eigenvector $v_2$ (v.2)")
+```
+```{r}
+all.equal(lambda.1 * v.1, b.mat %*% v.1)
+all.equal(lambda.2 * v.2, b.mat %*% v.2)
+```
+
+**Q4 c)**
+\begin{align}
+\vec{x_0} &= \begin{bmatrix} \vec{v_1} & \vec{v_2} \end{bmatrix}
+    \begin{bmatrix} c_1 \\ c_2 \end{bmatrix} \\
+\implies \begin{bmatrix} c_1 \\ c_2 \end{bmatrix} &= \begin{bmatrix} \vec{v_1} & \vec{v_2} \end{bmatrix}^{-1} \vec{x_0} \\
+\end{align}
+
+```{r echo=FALSE}
+x.0.coefs <- solve(matrix(c(v.1, v.2), nrow = 2, ncol = 2)) %*% x.0
+rownames(x.0.coefs) <- c("$c_1$", "$c_2$")
+colnames(x.0.coefs) <- c("Coefficients")
+kable(signif(x.0.coefs, 3))
+```
+
+**Q4 d)**
+
+We know that when we have complex eigenvectors and eigenvalues from a real-valued matrix that form a basis, the eigenvalues $\lambda_1, \lambda_2$ have to occur as a complex-conjugate pair. Their corresponding eigenvectors $\vec{v_1}, \vec{v_2}$ thus will have conjugate entries. As we have seen above, the coefficients are also a conjugate pair. Thus, $c_1 \lambda_1 \vec{v_1}, c_2 \lambda_2 \vec{v_2}$ will also be a conjugate pair. Hence, their sum, $x_1$, will have $\text{Im}(x_1) = 0$.
+
+**Q4 e)**
+Since we know that the eigenvalues of $\matr{b}$ are complex, then $\matr{b}$ represents a linear transform that both scales and rotates. The rotation factor explains why the coordinates have an oscillatory nature, and the magnitude of each eigenvalue $|\lambda_1| = |\lambda_2| = \frac{1}{\sqrt{2}} < 1$, hence the coordinates are shrunken towards 0 with increasing $t \to \infty$
+
+
+## Question 5
+
+**Q5 a)**
+
+\begin{align}
+\E[X_1] &= \E[a + b X_0 + \epsilon_1] \\
+    &= a + b \cdot \E[X_0] + \E[\epsilon_1] \\
+    &= a + b \mu + 0 \\
+    &= a + b \mu
+\end{align}
+
+\begin{align}
+\E[X_0] &= \E[X_1] \\
+\mu &= a + b \mu \\
+\mu - b \mu &= a \\
+\mu &= \frac{a}{1 - b}
+\end{align}
+
+
+**Q5 b)**
+\begin{align}
+Var[X_1] &= Var[a + b X_0 + \epsilon_1] \\
+    &= b^2 \cdot Var[X_0] + Var[\epsilon_1] + 2 \cdot Cov[X_0, \epsilon_1] \\
+    &= b^2 \sigma^2 + \tau^2 + 0 \\
+    &= b^2 \sigma^2 + \tau^2
+\end{align}
+
+\begin{align}
+Var[X_0] &= Var[X_1] \\
+\sigma^2 &= b^2 \sigma^2 + \tau^2 \\
+\sigma^2 - b^2 \sigma^2 &= \tau^2 \\
+\sigma^2 &= \frac{\tau^2}{1 - b^2}
+\end{align}
+
+**Q5 c)**
+\begin{align}
+Cov[X_0, X_1] &= Cov[X_0, a + b X_0 + \epsilon_1] \\
+    &= Cov[X_0, b X_0 + \epsilon_1] \\
+    &= b \cdot Cov[X_0, X_0] + Cov[X_0, \epsilon_1] \\
+    &= b \cdot Var[X_0] + 0 \\
+    &= \frac{\tau^2}{1 - b^2}
+\end{align}
+
+**Q5 d)**
+\begin{align}
+\E[X_2] &= \E[a + b X_1 + \epsilon_2] \\
+    &= a + b \cdot \E[X_1] + \E[\epsilon_2] \\
+    &= a + b \frac{a}{1 - b} + 0 \\
+    &= \frac{a - ab + ab}{1 - b} \\
+    &= \frac{a}{1 - b}
+\end{align}

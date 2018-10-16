@@ -1,0 +1,370 @@
+---
+title: "36-467 Homework 4"
+author: "Eu Jing Chua"
+date: "September 24, 2018"
+output: pdf_document
+header-includes:
+- \usepackage{placeins}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\DUB}{\text{DUB}}
+
+## Question 1
+
+```{r echo=FALSE}
+library(gstat)
+library(knitr)
+library(kableExtra)
+
+data(wind)
+n <- nrow(wind)
+wind.DUB.cov <- cov(wind$DUB[2:n], wind$DUB[1:(n-1)])
+wind.DUB.var <- var(wind$DUB)
+```
+
+**Q1 a)**
+$$
+Cov[X(\DUB, t), X(\DUB, t-1)] = `r signif(wind.DUB.cov, 5)`
+$$
+
+**Q1 b)**
+```{r echo=FALSE}
+wind.DUB.olp.beta <- wind.DUB.cov / var(wind$DUB[1:(n-1)])
+wind.DUB.olp.alpha <- mean(wind$DUB[2:n]) - wind.DUB.olp.beta * mean(wind$DUB[1:(n-1)])
+wind.DUB.olp.var <- var(wind$DUB[2:n]) - (wind.DUB.cov^2) / (var(wind$DUB[1:(n-1)]))
+```
+
+\begin{align}
+\beta &= \frac{Cov[X(\DUB, t), X(\DUB, t-1)]}{Var[X(\DUB, t-1)]} \\
+    &= `r signif(wind.DUB.olp.beta, 5)`
+\end{align}
+
+\begin{align}
+\alpha &= \E[X(\DUB, t)] - \beta \cdot \E[X(\DUB, t-1)] \\
+    &= `r signif(wind.DUB.olp.alpha, 5)`
+\end{align}
+
+\begin{align}
+Var[X(\DUB, t) - m(X(\DUB, t-1))] &= `r signif(wind.DUB.olp.var, 5)`
+\end{align}
+
+**Q1 c)**
+```{r echo=FALSE}
+wind.DUB.lm <- lm(wind$DUB[2:n] ~ wind$DUB[1:(n - 1)])
+```
+
+The intercept is `r signif(coef(wind.DUB.lm)[1], 5)` and the slope is `r signif(coef(wind.DUB.lm)[2], 5)`, which is same as the values from the optimal linear predictor.
+
+**Q1 d)**
+```{r echo=FALSE}
+wind.DUB.lm.errs <- (wind.DUB.lm$fitted.values - wind$DUB[2:n])
+```
+
+The mean of the errors is 0 and the variance is `r signif(var(wind.DUB.lm.errs), 5)`, which is the same as the values found in Q1 b).
+
+**Q1 e)**
+```{r echo=FALSE}
+wind.DUB.olp.ret.beta <- wind.DUB.cov / var(wind$DUB[2:n])
+wind.DUB.olp.ret.alpha <- mean(wind$DUB[1:(n-1)]) - wind.DUB.olp.ret.beta * mean(wind$DUB[2:n])
+```
+
+The intercept will be `r signif(wind.DUB.olp.ret.alpha, 5)` and the slope is `r signif(wind.DUB.olp.ret.beta, 5)`.
+
+## Question 2
+
+**Q2 a)**
+```{r echo=FALSE}
+wind.DUB.olp.2.beta <- cov(wind$DUB[3:n], wind$DUB[1:(n-2)]) / var(wind$DUB[1:(n-2)])
+wind.DUB.olp.2.alpha <- mean(wind$DUB[3:n]) - wind.DUB.olp.2.beta * mean(wind$DUB[1:(n-2)])
+```
+
+The intercept will be `r signif(wind.DUB.olp.2.alpha, 5)` and the slope is `r signif(wind.DUB.olp.2.beta, 5)`.
+
+**Q2 b)**
+Let $\vec{Z} = [X(\DUB, t-1), X(\DUB, t-2)]$ and $Y = X(\DUB, t)$
+
+```{r echo=FALSE}
+wind.DUB.olp.var.1 <- var(wind$DUB[2:(n-1)])
+wind.DUB.olp.var.2 <- var(wind$DUB[1:(n-2)])
+wind.DUB.olp.cov.1.2 <- cov(wind$DUB[2:(n-1)], wind$DUB[1:(n-2)])
+wind.DUB.olp.cov.0.1 <- cov(wind$DUB[3:n], wind$DUB[2:(n-1)])
+wind.DUB.olp.cov.0.2 <- cov(wind$DUB[3:n], wind$DUB[1:(n-2)])
+var.Z <- matrix(c(wind.DUB.olp.var.1, wind.DUB.olp.cov.1.2,
+              wind.DUB.olp.cov.1.2, wind.DUB.olp.var.2),
+            nrow = 2, ncol = 2)
+cov.Y.Z <- matrix(c(wind.DUB.olp.cov.0.1, wind.DUB.olp.cov.0.2),
+                  nrow = 2, ncol = 1)
+colnames(var.Z) <- c("X(DUB, t-1)", "X(DUB, t-2)")
+rownames(var.Z) <- c("X(DUB, t-1)", "X(DUB, t-2)")
+colnames(cov.Y.Z) <- c("X(DUB, t)")
+rownames(cov.Y.Z) <- c("X(DUB, t-1)", "X(DUB, t-2)")
+
+kable(var.Z, caption = "Variance matrix of Z, Var[Z]", digits = 5)
+kable(cov.Y.Z, caption = "Covariance between Y and Z, Cov[Y, Z]", digits = 5)
+```
+
+**Q2 c)**
+```{r echo=FALSE}
+wind.DUB.olp.1.2.beta <- solve(var.Z) %*% cov.Y.Z
+rownames(wind.DUB.olp.1.2.beta) <- c("X(DUB, t-1)", "X(DUB, t-2)")
+colnames(wind.DUB.olp.1.2.beta) <- c("Slope")
+wind.DUB.olp.1.2.alpha <- mean(wind$DUB[3:n]) - t(wind.DUB.olp.1.2.beta) %*% matrix(c(mean(wind$DUB[2:(n-1)]), mean(wind$DUB[1:(n-2)])), nrow = 2, ncol = 1)
+```
+
+The intercept is `r signif(wind.DUB.olp.1.2.alpha, 5)` and the slopes are as follows: `r kable(wind.DUB.olp.1.2.beta, digits = 5)`
+
+
+**Q2 d)**
+The relative difference between the two slopes in the multivariate regression is much larger than that in the two univariate regressions as in the multivariate case, we consider the covariance between $X(\DUB, t-1)$ and $X(\DUB, t-2)$ when determining the slopes. This is on top of just the variances of $X(\DUB, t-1)$ and $X(\DUB, t-2)$ individually, hence the difference in difference between the two slopes. 
+
+
+## Question 3
+
+**Q3 a)**
+
+```{r echo=FALSE}
+wind.DUB.acf <- acf(wind$DUB, lag.max = 800, type = "correlation", na.action = na.pass, main = "Plot of ACF of Wind Speeds in Dublin")
+```
+
+The shape of the function seems to be sinusoidal in nature, shortly after the point $lag = 0$. Looking at the rough position of the peaks and troughs, we can see that the period of oscillation is approximately 365 days (1 year), which would seem to indicate that there is some sort of annual pattern going on.
+
+
+**Q3 b)**
+```{r echo=FALSE}
+wind.DUB.olp.365.beta <- cov(wind$DUB[366:n], wind$DUB[1:(n-365)]) / var(wind$DUB[1:(n-365)])
+Z <- matrix(c(wind$DUB[365:(n-1)], wind$DUB[1:(n-365)]), ncol = 2)
+Y <- wind$DUB[366:n]
+wind.DUB.olp.1.365.beta <- solve(var(Z)) %*% cov(Z, Y)
+rownames(wind.DUB.olp.1.365.beta) <- c("X(DUB, t-1)", "X(DUB, t-365)")
+colnames(wind.DUB.olp.1.365.beta) <- c("Slope")
+```
+
+The slope is `r signif(wind.DUB.olp.365.beta, 5)` for predicting from $X(\DUB, t-365)$.  
+As predicting from $X(\DUB, t-1)$ and $X(\DUB, t-365)$, the slopes are as follows: `r kable(wind.DUB.olp.1.365.beta, digits = 5)`
+
+**Q3 c)**
+```{r echo=FALSE}
+ccf(wind$DUB, wind$SHA, lag.max = 800, main = "Plot of CCF Between Wind Speeds in Dublin and Shannon", ylab = "CCF")
+```
+
+Again, the shape of the function seems to be sinusoidal, except around $lag = 0$. The rough positions of the peaks and troughs also again hint at an annual pattern in the period of oscillation.
+
+\newpage
+\FloatBarrier
+
+## Question 4
+
+**Q4 a)**  
+```{r echo=FALSE}
+locations <- names(wind)[4:ncol(wind)][-7]
+Z <- as.matrix(wind[, locations], ncol = length(locations))
+Y <- wind$DUB
+kable(var(Z), digits = 3, caption = "Variance matrix of wind speeds at locations") %>%
+    kable_styling(latex_options = "hold_position")
+kable(cov(Z, Y), digits = 3, caption = "Cov[X(DUB, t), X(r, t)]") %>%
+    kable_styling(latex_options = "hold_position")
+```
+
+\newpage
+\FloatBarrier
+
+**Q4 b)**  
+```{r echo=FALSE}
+wind.DUB.spat.olp.beta <- solve(var(Z)) %*% cov(Z, Y)
+wind.DUB.spat.olp.alpha <- mean(Y) - t(wind.DUB.spat.olp.beta) %*% matrix(colMeans(Z), ncol = 1)
+results <- c(wind.DUB.spat.olp.alpha, wind.DUB.spat.olp.beta)
+names(results) <- c("Intercept", paste("X(", locations, ", t)", sep = ""))
+kable(results, digits = 5, col.names = "Coefficient", caption = "Coefficients of Optimal Linear Predictor") %>%
+    kable_styling(latex_options = "hold_position")
+```
+
+**Q4 c)**
+```{r echo=FALSE}
+wind.DUB.spat.olp.err.var <- var(Y) - t(cov(Z, Y)) %*% solve(var(Z)) %*% cov(Z, Y)
+```
+The theoretical variance of the prediction errors is `r signif(wind.DUB.spat.olp.err.var, 5)`.
+
+**Q4 d)**
+```{r echo=FALSE}
+wind.DUB.spat.olp.err <- Y - (c(wind.DUB.spat.olp.alpha) + t(wind.DUB.spat.olp.beta) %*% t(Z))
+```
+
+The mean of the prediction errors is 0, while the variance is `r signif(var(t(wind.DUB.spat.olp.err)), 5)`.
+
+\newpage
+\FloatBarrier
+
+## Question 5
+
+**Q5 a)**  
+```{r echo=FALSE}
+locations <- names(wind)[4:ncol(wind)][-7]
+Z <- as.matrix(wind[1:(n-1), locations], ncol = length(locations))
+Y <- wind$DUB[2:n]
+kable(var(Z), digits = 3, caption = "Variance matrix of wind speeds at locations") %>%
+    kable_styling(latex_options = "hold_position")
+kable(cov(Z, Y), digits = 3, caption = "Cov[X(DUB, t), X(r, t-1)]") %>%
+    kable_styling(latex_options = "hold_position")
+```
+
+\newpage
+\FloatBarrier
+
+**Q5 b)**  
+```{r echo=FALSE}
+wind.DUB.st.olp.beta <- solve(var(Z)) %*% cov(Z, Y)
+wind.DUB.st.olp.alpha <- mean(Y) - t(wind.DUB.st.olp.beta) %*% matrix(colMeans(Z), ncol = 1)
+results <- c(wind.DUB.st.olp.alpha, wind.DUB.st.olp.beta)
+names(results) <- c("Intercept", paste("X(", locations, ", t-1)", sep = ""))
+kable(results, digits = 5, col.names = "Coefficient", caption = "Coefficients of Optimal Linear Predictor") %>%
+    kable_styling(latex_options = "hold_position")
+```
+
+When comparing the current slopes to the slopes found in 4 b), it seems that some of the slopes (RPT, VAL, SHA, BIR, CLA, BEL) increased in value, whereas the rest decreased.
+
+**Q5 c)**
+```{r echo=FALSE}
+wind.DUB.st.olp.err.var <- var(Y) - t(cov(Z, Y)) %*% solve(var(Z)) %*% cov(Z, Y)
+```
+The theoretical variance of the prediction errors is `r signif(wind.DUB.st.olp.err.var, 5)`.
+
+**Q5 d)**
+```{r echo=FALSE}
+wind.DUB.st.olp.err <- Y - (c(wind.DUB.st.olp.alpha) + t(wind.DUB.st.olp.beta) %*% t(Z))
+```
+
+The mean of the prediction errors is 0, while the variance is `r signif(var(t(wind.DUB.st.olp.err)), 5)`.
+
+\newpage
+\FloatBarrier
+
+## Question 6
+
+**Q6 a)**
+```{r echo=FALSE}
+wind.DUB.olp.1.2.err <- t(wind$DUB[3:n] - (c(wind.DUB.olp.1.2.alpha) + t(wind.DUB.olp.1.2.beta) %*% t(matrix(c(wind$DUB[2:(n-1)], wind$DUB[1:(n-2)]), ncol = 2))))
+rms.errs <- c(mean(wind.DUB.lm.errs^2),
+              mean(wind.DUB.olp.1.2.err^2),
+              mean(t(wind.DUB.spat.olp.err)^2),
+              mean(t(wind.DUB.st.olp.err)^2)) ^ 0.5
+names(rms.errs) <- c("1b)", "2c)", "4b)", "5b)")
+kable(rms.errs, col.names = "RMSE", caption = "Root-mean-square of Prediction Errors", digits = 5) %>%
+    kable_styling(latex_options = "hold_position")
+```
+
+It seems that the predictor in the model from 4b) does the best as it has the lowest root-mean-square error.
+
+\FloatBarrier
+
+**Q6 b)**
+```{r echo=FALSE}
+new.wind <- wind[wind$year >= 61 & wind$year <= 69, ]
+n <- nrow(new.wind)
+
+Z <- new.wind$DUB[1:(n-1)]
+Y <- new.wind$DUB[2:n]
+new.olp.1.beta <- solve(var(Z)) %*% cov(Z, Y)
+new.olp.1.alpha <- mean(Y) - new.olp.1.beta * mean(Z)
+
+Z <- matrix(c(new.wind$DUB[2:(n-1)], new.wind$DUB[1:(n-2)]), ncol = 2)
+Y <- new.wind$DUB[3:n]
+new.olp.1.2.beta <- solve(var(Z)) %*% cov(Z, Y)
+new.olp.1.2.alpha <- mean(Y) - t(new.olp.1.2.beta) %*% matrix(colMeans(Z), nrow = 2)
+
+Z <- as.matrix(new.wind[, locations], ncol = 2)
+Y <- new.wind$DUB
+new.olp.spat.beta <- solve(var(Z)) %*% cov(Z, Y)
+new.olp.spat.alpha <- mean(Y) - t(new.olp.spat.beta) %*% matrix(colMeans(Z), nrow = 11)
+
+Z <- as.matrix(new.wind[1:(n-1), locations], ncol = 2)
+Y <- new.wind$DUB[2:n]
+new.olp.st.beta <- solve(var(Z)) %*% cov(Z, Y)
+new.olp.st.alpha <- mean(Y) - t(new.olp.st.beta) %*% matrix(colMeans(Z), nrow = 11)
+
+result <- c(wind.DUB.olp.alpha, wind.DUB.olp.beta)
+result <- cbind(result, c(new.olp.1.alpha, new.olp.1.beta))
+rownames(result) <- c("Intercept", "X(DUB, t-1)")
+colnames(result) <- c("Old", "New")
+kable(result, caption = "Coefficients of OLP in 1b)", digits = 5) %>% kable_styling(latex_options = "hold_position")
+
+result <- c(wind.DUB.olp.1.2.alpha, wind.DUB.olp.1.2.beta)
+result <- cbind(result, c(new.olp.1.2.alpha, new.olp.1.2.beta))
+rownames(result) <- c("Intercept", "X(DUB, t-1)", "X(DUB, t-2)")
+colnames(result) <- c("Old", "New")
+kable(result, caption = "Coefficients of OLP in 2c)", digits = 5) %>% kable_styling(latex_options = "hold_position")
+
+result <- c(wind.DUB.spat.olp.alpha, wind.DUB.spat.olp.beta)
+result <- cbind(result, c(new.olp.spat.alpha, new.olp.spat.beta))
+rownames(result) <- c("Intercept", paste("X(", locations, ", t)", sep = ""))
+colnames(result) <- c("Old", "New")
+kable(result, caption = "Coefficients of OLP in 4b)", digits = 5) %>% kable_styling(latex_options = "hold_position")
+
+result <- c(wind.DUB.st.olp.alpha, wind.DUB.st.olp.beta)
+result <- cbind(result, c(new.olp.st.alpha, new.olp.st.beta))
+rownames(result) <- c("Intercept", paste("X(", locations, ", t-1)", sep = ""))
+colnames(result) <- c("Old", "New")
+kable(result, caption = "Coefficients of OLP in 5b)", digits = 5) %>% kable_styling(latex_options = "hold_position")
+```
+
+\FloatBarrier
+
+**Q6 c)**
+```{r echo=FALSE}
+t <- with(wind, which(year == 70 & month == 1 & day == 1))
+jan.1.1970.pred <- c(
+    new.olp.1.alpha + new.olp.1.beta * (wind$DUB[t-1]),
+    new.olp.1.2.alpha + matrix(c(wind$DUB[t-1], wind$DUB[t-2]), ncol = 2) %*% new.olp.1.2.beta,
+    new.olp.spat.alpha + as.matrix(wind[t, locations], ncol = 11) %*% new.olp.spat.beta,
+    new.olp.st.alpha + as.matrix(wind[t-1, locations], ncol = 11) %*% new.olp.st.beta)
+names(jan.1.1970.pred) <- c("1b)", "2c)", "4b)", "5b)")
+kable(jan.1.1970.pred, col.names = "Predictions", caption = "Predictions of Jan 1 1970 Wind Speeds", digits = 5) %>%
+    kable_styling(latex_options = "hold_position")
+
+kable(wind$DUB[t] - jan.1.1970.pred, col.names = "Error", caption = "Prediction Errors", digits = 5) %>%
+    kable_styling(latex_options = "hold_position")
+```
+
+\FloatBarrier
+
+**Q6 d)**
+```{r echo=FALSE}
+start.t <- with(wind, which(year == 70 & month == 1 & day == 1))
+end.t <- with(wind, which(year == 78 & month == 12 & day == 31))
+
+prediction.1 <- sapply(
+                       start.t:end.t,
+                       function(t) new.olp.1.alpha + new.olp.1.beta * wind$DUB[t-1])
+prediction.1.2 <- sapply(
+                         start.t:end.t,
+                         function(t) new.olp.1.2.alpha + matrix(c(wind$DUB[t-1], wind$DUB[t-2]), ncol = 2) %*% new.olp.1.2.beta)
+prediction.spat <- sapply(
+                          start.t:end.t,
+                          function(t) new.olp.spat.alpha + as.matrix(wind[t, locations], ncol = 11) %*% new.olp.spat.beta)
+prediction.st <- sapply(
+                        start.t:end.t,
+                        function(t) new.olp.st.alpha + as.matrix(wind[t-1, locations], ncol = 11) %*% new.olp.st.beta)
+predictions <- matrix(c(prediction.1, prediction.1.2, prediction.spat, prediction.st), ncol = 4)
+names(predictions) <- c("1b)", "2c)", "4b)", "5b)")
+
+errors <- c(wind$DUB[start.t:end.t], wind$DUB[start.t:end.t], wind$DUB[start.t:end.t], wind$DUB[start.t:end.t]) - predictions
+mean.errors <- colMeans(errors)
+names(mean.errors) <- c("1b)", "2c)", "4b)", "5b)")
+rms.errors <- colMeans(errors^2)^0.5
+names(rms.errors) <- c("1b)", "2c)", "4b)", "5b)")
+
+kable(mean.errors, caption = "Mean Prediction Errors", col.names = "Mean Prediction Errors", digits = 5) %>%
+    kable_styling(latex_options = "hold_position")
+
+kable(rms.errors, caption = "Root-mean-square Prediction Errors", col.names = "RMSE", digits = 5) %>%
+    kable_styling(latex_options = "hold_position")
+```
+
+\FloatBarrier
+
+**Q6 e)**
+The numbers differ as in 6a), the models were fitted using the entire data set and then used to predict values it used for fitting, while in 6d) the models were fitted using only a portion of the data set and then the held out portion was used for calculating prediction error. The prediction errors in 6d) give a better idea as it gives us an idea of how the models we have created perform on data it has not seen before, therefore giving us a better sense of generalization.

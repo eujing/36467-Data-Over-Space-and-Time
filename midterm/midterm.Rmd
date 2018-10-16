@@ -1,0 +1,285 @@
+---
+title: "36-467 Midterm"
+author: "Eu Jing Chua"
+date: "10 October, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r echo=FALSE}
+library(sp)
+library(plyr)
+library(knitr)
+```
+
+
+```{r echo=FALSE, cache=TRUE}
+data <- read.csv("http://www.stat.cmu.edu/~cshalizi/dst/18/exams/1/ccw.csv")
+```
+
+```{r echo=FALSE}
+datetimes <- as.POSIXlt(data$time)
+lats <- sapply(strsplit(names(data)[-1], split = "W"), function (x) as.numeric(substr(x[1], 3, nchar(x[1]) - 1)))
+longs <- -sapply(strsplit(names(data)[-1], split = "W"), function (x) as.numeric(substr(x[2], 3, nchar(x[2]))))
+df <- as.data.frame(cbind(epoch = as.vector(unclass(as.POSIXct(data$time))),
+                          year = datetimes$year + 1900,
+                          yday = datetimes$yday,
+                          hour = datetimes$hour,
+                          data[, -1]^3))
+# Since 2016 is a leap year, subtract 1 day from everything past the leap day to align the day of year
+dt.to.adj <- which(df$year == 2016 & datetimes$mon >= 1 & datetimes$mday >= 29)
+df[dt.to.adj, ]$yday <- df[dt.to.adj, ]$yday - 1
+locs <- data.frame(label = as.character(paste("Area", 1:length(lats), sep = "")),
+                   y = lats,
+                   x = longs)
+coordinates(locs) <- ~x + y
+areas = as.character(locs$label)
+colnames(df) <- c("epoch", "year", "yday", "hour", areas)
+```
+
+# Introduction
+
+We seek to systematically find the optimal location for wind power. This location should have the highest windspeed $v$, as energy generated is proportional to $v^3$. We then also seek to find the estimated expected value of $v^3$ at this location, as well as the standard error for this estimate.
+
+We also code the areas as follows:
+```{r echo=FALSE}
+kable(locs, col.names = c("Label", "Latitude", "Longitude"))
+```
+
+\newpage
+
+# Exploratory Data Analysis
+
+First, since we are interested in $v^3$, we apply a cubic transform to the windspeeds in the data set to make later analysis easier. Then we shall analyze if there are any annual patterns in the wind speeds in each area, across the years 2014 to 2018. We overlap the plots of cubed wind speeds for each year within a region to see if there seems to any seasonal trends:
+
+```{r echo=FALSE, fig.height = 7.5}
+cols = rainbow(5)
+
+par(mfrow = c(8, 2), mar = c(2, 2, 1, 1), oma = c(4, 4, 0, 0))
+
+for (area in areas) {
+    y <- subset(df, year == 2014)[[area]]
+    plot(1:(4*365), y,
+         type = "l", col = cols[1],
+         ylim = c(min(df[, area]), max(df[, area])), main = area)
+    for (yr in 2015:2018) {
+        y <- subset(df, year == yr)[[area]]
+        lines(1:min(4*365, length(y)), subset(df, year == yr)[[area]],
+              type = "l", col = cols[yr - 2013])
+    }
+    legend("topright", legend = 2014:2018, col = cols, lty = 1, cex = 0.5)
+}
+mtext("Time within a year", side = 1, outer = TRUE, line = 2)
+mtext("Wind Speed cubed (v^3)", side = 2, outer = TRUE, line = 2)
+```
+
+\newpage
+
+However, there seems to be an obvious outlier in the data which effects got exaggerated by the cubic transform, so we remove it and re-plot:  
+
+```{r echo=FALSE, fig.height = 8}
+for (area in areas) {
+    outlier.idx <- which(df[, area] == max(df[, area]))
+    df[outlier.idx, area] <- NA
+}
+
+par(mfrow = c(8, 2), mar = c(2, 2, 1, 1), oma = c(4, 4, 0, 0))
+
+for (area in areas) {
+    y <- subset(df, year == 2014)[[area]]
+    plot(1:(4*365), y,
+         type = "l", col = cols[1],
+         ylim = c(min(df[, area], na.rm = TRUE), max(df[, area], na.rm = TRUE)), main = area)
+    for (yr in 2015:2018) {
+        y <- subset(df, year == yr)[[area]]
+        lines(1:min(4*365, length(y)), subset(df, year == yr)[[area]],
+              type = "l", col = cols[yr - 2013])
+    }
+    legend("topright", legend = 2014:2018, col = cols, lty = 1, cex = 0.5)
+}
+mtext("Time within a year", side = 1, outer = TRUE, line = 2)
+mtext("Wind Speed cubed (v^3)", side = 2, outer = TRUE, line = 2)
+```
+
+\newpage
+
+Now that we suspect that there might be an annual trend, we also plot the auto-correlation over time within each location to see if the correlation has a period nature, indicating a seasonal trend:
+
+```{r echo=FALSE, fig.height = 8}
+par(mfrow = c(8, 2), mar = c(1, 1, 1, 1), oma = c(4, 4, 0, 0))
+for (area in areas) {
+    acf(df[, area], lag.max = 365 * 4 * 2, na.action = na.pass)
+    title(area, line = -2)
+}
+mtext("Lag", side = 1, outer = TRUE, line = 2)
+mtext("ACF", side = 2, outer = TRUE, line = 2)
+```
+
+\newpage
+
+# Detrending & Stationarity in Time
+
+As seen from the auto-correlation, there is a seasonal trend for each location as the ACF is sinusoidal, with a period of roughly $365 * 4$ as there are four observations a day, hence stationarity over time cannot be assumed yet. However, by taking an average across the years for each location, we can smooth this seeming annual trend:
+
+```{r echo=FALSE}
+# Usage of ddply and matplot inspired by solutions-05.Rmd
+cols = rainbow(15)
+wind.mean <- ddply(df[, -(1:2)], .variables = c("yday", "hour"), colMeans)
+matplot(1:nrow(wind.mean), wind.mean[, -(1:2)],
+        type = "l", xlab = "Time within a year", ylab = "v^3", col = cols, lty = 1:2,
+        main = "Plot of smoothed annual v^3 trend")
+legend("topright", legend = areas, col = cols, lty = 1:2, cex = 0.5)
+```
+
+Now that we have determined an approximate trend for the windspeed cubed, $v^3$, across a year, we know that we cannot assume $v^3$ is stationary as the mean at any point in time in the year is seemingly non-constant. However, we can use the trend that we have just found to de-trend the data and analyze the noise around the trend, plotted as so:
+
+```{r echo=FALSE, warning=FALSE}
+# Usage of ddply and matplot inspired by solutions-05.Rmd
+wind.detrend <- ddply(df, .variables = c("yday", "hour"), function(x) {
+    cbind(x[, 1:4], scale(x[, -(1:4)], center = TRUE, scale = FALSE))
+})
+wind.detrend <- wind.detrend[order(wind.detrend$year, wind.detrend$yday, wind.detrend$hour), ]
+wind.detrend.mean <- ddply(wind.detrend[, -(1:2)], .variables = c("yday", "hour"), colMeans)
+
+matplot(1:nrow(wind.detrend), wind.detrend[, -(1:4)],
+		xlab = "Time from 2014 to 2018", ylab = "Detrended v^3", col = cols,
+		main = "Plot of detrended v^3", type = "l", lty = 1:2)
+legend("topright", legend = areas, col = cols, lty = 1:2, cex = 0.5)
+kable(apply(wind.detrend[, -(1:4)][, 1:8], 2, summary), caption = "Summary statistics of detrended wind speeds", digits = 2)
+kable(apply(wind.detrend[, -(1:4)][, 9:15], 2, summary), digits = 2)
+
+matplot(1:nrow(wind.detrend.mean), wind.detrend.mean[, -(1:2)], 
+        xlab = "Time within a year", ylab = "Detrended v^3", col = cols,
+        main = "Plot of detrended v^3 averaged over years", type = "l", lty = 1:2,
+        xlim = c(0, nrow(wind.detrend.mean) + 140))
+legend("topright", legend = areas, col = cols, lty = 1:2, cex = 0.5)
+```
+
+The plot of the averaged de-trended $v^3$ now appears to be more of a random scatter about 0, as also indicated by the summary statistics. We can now more safely make the assumption that this de-trended $v^3$ is stationary in time.
+
+# Spatial Krigging
+It should be noted that the data was collected over a regular 3x5 grid, where the average annual wind speed at each point is as follows:
+
+```{r echo=FALSE}
+loc.avg <- matrix(nrow = 3, ncol = 5)
+colnames(loc.avg) <- as.character(sort(unique(longs)))
+rownames(loc.avg) <- as.character(sort(unique(lats)))
+locs$avg.wind <- vector(length = 15)
+for (area in areas) {
+    loc.idx <- which(locs$label == area)
+    coord <- coordinates(locs)[loc.idx, ]
+    loc.avg[as.character(coord[["y"]]), as.character(coord[["x"]])] <- mean(wind.mean[, area], na.rm = TRUE)
+    locs[loc.idx, "avg.wind"] <- mean(wind.mean[, area], na.rm = TRUE)
+}
+kable(loc.avg)
+```
+
+```{r echo=FALSE}
+# Map plotting inspired by lecture-08.Rmd
+library(mapdata)
+map("worldHires", xlim = c(-74, -69), ylim = c(40,43), fill = TRUE, col = "gray")
+plot(locs, add = TRUE, pch = 16, col = topo.colors(5)[cut(locs$avg.wind, 5)])
+legend("bottomright", legend = levels(cut(locs$avg.wind, 5)), col = topo.colors(5), pch = 16, cex = 0.7)
+```
+
+As we can visually observe, for the data that we have on the grid, locations at sea tend to have a higher average wind speed compared to locations on land. Although the data that we have is evenly spaced out on a grid, this stark difference in means between land windspeeds and sea windspeeds prevents us from assuming stationarity of the correlation function. In order to proceed, we can stratify the data into land and and sea windspeeds. Since we are interested in finding a location with higher windspeeds, we focus on the sea strata. In order to perform this stratification simply, we pick the locations that have higher than average (global) wind speeds.
+
+```{r echo=FALSE}
+map("worldHires", xlim = c(-74, -69), ylim = c(40,43), fill = TRUE, col = "gray")
+global.mean <- mean(rowMeans(wind.mean[, -(1:2)], na.rm = TRUE), na.rm = TRUE)
+sea.locs <- locs[locs$avg.wind > global.mean, ]
+plot(sea.locs, add = TRUE, pch = 16, col = topo.colors(5)[cut(sea.locs$avg.wind, 5)])
+legend("bottomright", legend = levels(cut(sea.locs$avg.wind, 5)), col = topo.colors(5), pch = 16, cex = 0.7)
+```
+
+Among these locations, we assume that the correlation function has stationarity. Indeed, we can verify this by looking at the cross-correlation functions.
+
+```{r echo=FALSE}
+sea.areas = as.character(sea.locs$label)
+
+par(mfrow = c(2, 2))
+ccf(wind.detrend[, sea.areas[1]], wind.detrend[, sea.areas[2]], lag.max = 365 * 4 * 2, na.action = na.pass,
+    main = paste("CCF of", sea.areas[1], "and", sea.areas[2]))
+ccf(wind.detrend[, sea.areas[3]], wind.detrend[, sea.areas[4]], lag.max = 365 * 4 * 2, na.action = na.pass,
+    main = paste("CCF of", sea.areas[3], "and", sea.areas[4]))
+ccf(wind.detrend[, sea.areas[5]], wind.detrend[, sea.areas[6]], lag.max = 365 * 4 * 2, na.action = na.pass,
+    main = paste("CCF of", sea.areas[5], "and", sea.areas[6]))
+ccf(wind.detrend[, sea.areas[7]], wind.detrend[, sea.areas[8]], lag.max = 365 * 4 * 2, na.action = na.pass,
+    main = paste("CCF of", sea.areas[7], "and", sea.areas[8]))
+```
+
+Although this does not represent all pairwise CCFs, we can see that there is no significant cross-correlation between these locations.
+
+Now, we want to be able to estimate a correlation function so that we can make predictions with an optimal linear predictor on locations that we do not have data for. We do not want to restrict ourselves to just finding locations on this 3x15 grid and would like to see if there are other more optimal locations around the grid. Thus, we would like to assume, in addition, the correlation function is isotropic.
+
+Assuming that the correlation function is stationary and isotropic among the sea locations, we can estimate the correlation with a parametric exponential decay.
+
+```{r echo=FALSE}
+wind.cor <- cor(na.omit(wind.detrend[, as.character(sea.locs$label)]))
+wind.cor.vec <- as.vector(wind.cor)
+distances <- spDists(coordinates(sea.locs), longlat = TRUE)
+distances.vec <- as.vector(distances)
+plot(distances.vec, wind.cor.vec,
+     xlab = "Distance (km)", ylab = "Correlation", main = "Plot of correlation against distance between areas")
+
+L.rough <- -log(0.875) / 100
+wind.cor.exp.fit <- nls(wind.cor.vec ~ exp(-L * distances.vec),
+                        start = list(L = L.rough))
+L <- coef(wind.cor.exp.fit)[["L"]]
+lines(sort(distances.vec), exp(-L * sort(distances.vec)), col = "red")
+```
+
+By performing non-linear least squares, we get an estimated correlation distance length of `r signif(1/L, 5)`km.
+
+Now, we can use optimal linear prediction with our estimated correlation function to predict for new locations. Since we know for our coarse grid that the highest $v^3$ observed was at longitude -69.5 and latitude 42, we conduct a finer grid-search centered around this location in try find an optimal location while saving computation time.
+
+```{r echo=FALSE}
+olp.v.cubed <- function(long, lat) {
+    sea.areas <- as.character(sea.locs$label)
+    Z <- df[, sea.areas]
+    Z.mat <- as.matrix(Z, ncol = 9)
+    loc.longlat <- data.frame(x = long, y = lat)
+    distances <- spDists(coordinates(sea.locs), longlat = TRUE)
+    dist.to.loc <- spDistsN1(pts = coordinates(sea.locs),
+                             pt = as.numeric(loc.longlat),
+                             longlat = TRUE)
+    corYZ <- exp(-L * dist.to.loc)
+    corZ <- exp(-L * distances)
+    olp.beta <- solve(corZ) %*% corYZ
+    rownames(olp.beta) <- sea.areas
+
+    return (mean((Z.mat %*% olp.beta), na.rm = TRUE))
+}
+
+cols <- seq(-69.75, -69.25, 0.05)
+rows <- seq(41.75, 42.25, 0.05)
+results <- matrix(ncol = length(cols), nrow = length(rows))
+colnames(results) <- cols
+rownames(results) <- rows
+
+for (i in rows) {
+    for (j in cols) {
+        results[as.character(i), as.character(j)] <- olp.v.cubed(j, i)
+    }
+}
+kable(results, digits = 2)
+```
+
+With our optimal linear predictor applied to the original $v^3$ data, we find that the location with the highest wind speeds still corresponds to longitude -69.5 and latitude 42, the location from our original data with the highest wind speed.
+
+# Results
+
+```{r echo=FALSE}
+loc.longlat <- data.frame(x = -69.5, y = 42)
+distances <- spDists(coordinates(sea.locs), longlat = TRUE)
+dist.to.loc <- spDistsN1(pts = coordinates(sea.locs),
+                         pt = as.numeric(loc.longlat),
+                         longlat = TRUE)
+corYZ <- exp(-L * dist.to.loc)
+corZ <- exp(-L * distances)
+std.err <- (var(sea.locs$avg.wind) - t(corYZ) %*% solve(corZ) %*% corYZ)^0.5
+```
+
+As we have just seen, using an optimal linear predictor on the sea locations we picked out, and using our parametric estimate of the correlation function with this model resulted in the longitude -69.5 and latitude 42 having the highest expected $v^3$ of `r signif(results["42", "-69.5"], 5)` $(m/s)^3$, with a standard error of `r signif(std.err, 5)` $(m/s)^3$.
