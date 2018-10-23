@@ -1,0 +1,10 @@
+---
+title: "36-467 Homework 3"
+author: "Eu Jing Chua"
+date: "September 17, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```

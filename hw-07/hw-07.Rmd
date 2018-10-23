@@ -1,0 +1,43 @@
+---
+title: "36-467 Homework 7"
+author: "Eu Jing Chua"
+date: "October 23, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE}
+slaves <- read.csv("http://www.stat.cmu.edu/~cshalizi/dst/18/hw/07/sial.csv")
+slaves$Year <- as.numeric(substr(slaves$X, 8, 11))
+slaves$X <- NULL
+loc.cols <- which(colnames(slaves) != "Year")
+```
+
+## Question 1
+
+**Q1 a)**
+```{r echo=FALSE}
+matplot(slaves$Year, slaves[, loc.cols], type = "l",
+        xlab = "Year", ylab = "Number of exported slaves",
+        main = "Plot of number of exported slaves against years")
+```
+
+**Q1 b)**
+```{r echo=FALSE}
+loc.tmp <- c("S..Dahomey...Bight.of.Benin",
+             "Sierra.Leone...Upper.Guinea",
+             "Akan...Gold.Coast",
+             "W..Nigeria...Bight.of.Benin")
+cols <- rainbow(4)
+matplot(slaves$Year, slaves[, loc.tmp], type = "l",
+        lty = 1, col = cols,
+        ylim = c(min(slaves[, loc.tmp]), max(slaves[, loc.tmp]) + 30000),
+        xlab = "Year", ylab = "Number of exported slaves",
+        main = "Plot of number of exported slaves against years")
+legend("topright", legend = loc.tmp,
+       lty = 1, col = cols)
+```
+
