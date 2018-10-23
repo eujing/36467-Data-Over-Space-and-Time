@@ -37,6 +37,7 @@ matplot(slaves$Year, slaves[, loc.tmp], type = "l",
         ylim = c(min(slaves[, loc.tmp]), max(slaves[, loc.tmp]) + 30000),
         xlab = "Year", ylab = "Number of exported slaves",
         main = "Plot of number of exported slaves against years")
+# TODO: Plot Splines
 legend("topright", legend = loc.tmp,
        lty = 1, col = cols)
 ```
