@@ -10,6 +10,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r echo=FALSE}
+library(knitr)
+options(scipen = 999)
+
 slaves <- read.csv("http://www.stat.cmu.edu/~cshalizi/dst/18/hw/07/sial.csv")
 slaves$Year <- as.numeric(substr(slaves$X, 8, 11))
 slaves$X <- NULL
@@ -19,26 +22,292 @@ loc.cols <- which(colnames(slaves) != "Year")
 ## Question 1
 
 **Q1 a)**
+
 ```{r echo=FALSE}
 matplot(slaves$Year, slaves[, loc.cols], type = "l",
         xlab = "Year", ylab = "Number of exported slaves",
         main = "Plot of number of exported slaves against years")
 ```
 
+\newpage
+
 **Q1 b)**
+
 ```{r echo=FALSE}
 loc.tmp <- c("S..Dahomey...Bight.of.Benin",
              "Sierra.Leone...Upper.Guinea",
              "Akan...Gold.Coast",
              "W..Nigeria...Bight.of.Benin")
 cols <- rainbow(4)
+slaves.smoothed <- matrix(ncol = 4, nrow = nrow(slaves))
+colnames(slaves.smoothed) <- loc.tmp
+
+for (loc in loc.tmp) {
+    slaves.smoothed[, loc] <- fitted(smooth.spline(slaves$Year, slaves[, loc]))
+}
+
 matplot(slaves$Year, slaves[, loc.tmp], type = "l",
-        lty = 1, col = cols,
-        ylim = c(min(slaves[, loc.tmp]), max(slaves[, loc.tmp]) + 30000),
+        lty = 2, col = cols,
+        xlim = c(min(slaves$Year), max(slaves$Year) + 70),
         xlab = "Year", ylab = "Number of exported slaves",
         main = "Plot of number of exported slaves against years")
-# TODO: Plot Splines
-legend("topright", legend = loc.tmp,
-       lty = 1, col = cols)
+matplot(slaves$Year, slaves.smoothed[, loc.tmp], type = "l",
+        lty = 1, col = cols, add = TRUE)
+
+legend("topright", legend = c(loc.tmp, paste("Smoothed", loc.tmp)),
+       lty = c(rep(2, 4), rep(1, 4)), col = cols, cex = 0.5)
 ```
 
+\newpage
+
+**Q1 c)**
+
+```{r echo=FALSE, fig.height = 5}
+par(mfrow = c(2, 2))
+for (loc in loc.tmp) {
+    acf(slaves[, loc], lag.max = 25, type = "correlation", na.action = na.pass,
+        main = loc)
+}
+```
+
+\newpage
+
+**Q1 d)**
+
+```{r echo=FALSE, fig.height = 7}
+par(mfrow = c(3, 2))
+for (i in 1:4) {
+    if (i < 4) {
+        for (j in (i+1):4) {
+            ccf(slaves[, loc.tmp[i]], slaves[, loc.tmp[j]], lag.max = 25, type = "correlation", na.action = na.pass,
+                main = paste(loc.tmp[i], "&", loc.tmp[j]))
+        }
+    }
+}
+```
+
+## Question 2
+
+**Q2 a)**
+
+```{r echo=FALSE}
+slaves.s.dahomey.ar.1 <- arima(slaves[, "S..Dahomey...Bight.of.Benin"],
+                               order = c(1, 0, 0), method = "CSS", include.mean = TRUE)
+arima.coefs <- coef(slaves.s.dahomey.ar.1)
+coefs <- c(arima.coefs[1], arima.coefs[2] * (1 - arima.coefs[1]))
+names(coefs) <- c("Slope", "Intercept")
+kable(coefs, col.names = "Coefficients")
+```
+
+**Q2 b)**
+The stationary mean implied by this process is `r round(arima.coefs[2])` while the implied stationary variance is `r round(slaves.s.dahomey.ar.1$sigma2)`.
+The sample mean is `r round(mean(slaves[, "S..Dahomey...Bight.of.Benin"]))` and variance is `r round(var(slaves[, "S..Dahomey...Bight.of.Benin"]))`. The means are very similar, but the variance is about half that of the sample variance.
+
+
+**Q2 c)**
+
+Assuming the innovations are distributed normally with mean 0 and variance as above, and the minimum value that can be generated is 10 as in the data:
+
+```{r echo=FALSE}
+# From lecture 12
+set.seed(2018-10-12)  # Trick learned from Thomas Lumley to make random draws reproducible
+ar.1.sim <- matrix(nrow=nrow(slaves), ncol = 20)
+a <- coefs[2]
+b <- coefs[1]
+innov.var <- slaves.s.dahomey.ar.1$sigma2
+cols <- rainbow(20)
+
+for (i in 1:20) {
+    ar.1.sim[1, i] <- slaves[1, "S..Dahomey...Bight.of.Benin"]
+    for (t in 2:nrow(ar.1.sim)) {
+        ar.1.sim[t, i] <- max(a + b * ar.1.sim[t-1, i] + rnorm(1, sd=sqrt(innov.var)), 10)
+    }
+}
+matplot(slaves$Year, ar.1.sim, type="l",
+        xlab="Year", ylab="Number of exported slaves", lty = 2, col = cols,
+        main="Plot of simulated AR(1) trajectories and actual data (South Dahomey)")
+lines(slaves$Year, slaves[, "S..Dahomey...Bight.of.Benin"])
+legend("topright", legend=c("Simulated", "Actual"),
+       lty=c(2, 1), col = c(cols[1], "black"))
+```
+
+The data does look like a run of the simulation.
+
+**Q2 d)**
+
+```{r echo=FALSE}
+slaves.s.dahomey.ar.2 <- arima(slaves[, "S..Dahomey...Bight.of.Benin"],
+                               order = c(2, 0, 0), method = "CSS", include.mean = TRUE)
+arima.coefs.2 <- coef(slaves.s.dahomey.ar.2)
+coefs.2 <- c(arima.coefs.2[1], arima.coefs.2[2], arima.coefs.2[3] * (1 - arima.coefs.2[1] - arima.coefs.2[2]))
+names(coefs.2) <- c("X(t-1)", "X(t-2)", "Intercept")
+kable(coefs.2, col.names = "Coefficients")
+```
+
+**Q2 e)**
+
+```{r echo=FALSE}
+set.seed(2018-10-12)
+training.set <- slaves[slaves$Year < 1780, "S..Dahomey...Bight.of.Benin"]
+testing.set <- slaves[slaves$Year >= 1780, "S..Dahomey...Bight.of.Benin"]
+
+ar.1 <- arima(training.set, order = c(1, 0, 0), method = "CSS")
+ar.1.coefs <- c(coef(ar.1)[1], coef(ar.1)[2] * (1 - coef(ar.1)[1]))
+ar.1.pred <- vector(length=length(testing.set))
+ar.1.pred[1] <- ar.1.coefs[2] + ar.1.coefs[1] * training.set[length(training.set)] + rnorm(1, sd = sqrt(ar.1$sigma2))
+ar.1.pred[1] <- max(ar.1.pred[1], 10)
+for (i in 2:length(ar.1.pred)) {
+    ar.1.pred[i] <- max(ar.1.coefs[2] + ar.1.coefs[1] * ar.1.pred[i - 1] + rnorm(1, sd = sqrt(ar.1$sigma2)), 10)
+}
+ar.1.rms <- sqrt(mean((testing.set - ar.1.pred)^2))
+
+ar.2 <- arima(training.set, order = c(2, 0, 0), method = "CSS")
+ar.2.coefs <- c(coef(ar.2)[1], coef(ar.2)[2], coef(ar.2)[3] * (1 - coef(ar.2)[1] - coef(ar.2)[2]))
+ar.2.pred <- vector(length=length(testing.set))
+ar.2.pred[1] <- ar.2.coefs[3] + ar.2.coefs[1] * training.set[length(training.set)] + ar.2.coefs[2] * training.set[length(training.set) - 1] + rnorm(1, sd = sqrt(ar.2$sigma2))
+ar.2.pred[1] <- max(ar.2.pred[1], 10)
+ar.2.pred[2] <- ar.2.coefs[3] + ar.2.coefs[1] * ar.2.pred[1] + ar.2.coefs[2] * training.set[length(training.set)] + rnorm(1, sd = sqrt(ar.2$sigma2))
+ar.2.pred[2] <- max(ar.2.pred[2], 10)
+for (i in 3:length(ar.2.pred)) {
+    ar.2.pred[i] <- max(ar.2.coefs[3] + ar.2.coefs[1] * ar.2.pred[i - 1] + ar.2.coefs[2] * ar.2.pred[i - 2] + rnorm(1, sd = sqrt(ar.2$sigma2)), 10)
+}
+ar.2.rms <- sqrt(mean((testing.set - ar.2.pred)^2))
+```
+
+The RMS of the AR(1) model is `r round(ar.1.rms)` while that of AR(2) is `r round(ar.2.rms)`.  
+Thus it seems AR(2) is performing better.
+
+## Question 3
+
+**Q3 a)**
+
+```{r echo=FALSE}
+loc.tmp.names <- c("S. Dahomey", "Sierra Leone", "Akan", "W. Nigeria")
+var.1 <- ar.ols(slaves[, loc.tmp], aic = FALSE, order.max = 1, demean = FALSE, intercept = TRUE)
+
+intercepts <- var.1$x.intercept
+names(intercepts) <- loc.tmp.names
+slopes <- var.1$ar[1, , ]
+rownames(slopes) <- loc.tmp.names
+colnames(slopes) <- loc.tmp.names
+kable(intercepts, col.names = "Coefficients", digits = 3,
+      caption = "VAR(1) Intercepts")
+kable(slopes, caption = "VAR(1) Slopes", digits = 3)
+```
+
+**Q3 b)**
+
+```{r echo=FALSE}
+var.1.eigenvals <- eigen(slopes)$values
+kable(var.1.eigenvals, col.names = "Eigenvalues", digits = 3,
+      caption = "Eigenvalues of est. slope matrix of VAR(1)")
+```
+
+The eigenvalues are all less than 1 in magnitude, which indicate that each step of the autoregression shrinks in each component of the eigenvectors, which acts to counter the addition of variance from innovation to form an approximately stationary process.
+
+**Q3 c)**
+
+```{r echo=FALSE}
+kable(slopes[1, ], caption = "VAR(1) Slopes for S. Dahomey", digits = 3)
+```
+
+For each increase in number of slaves in each region at $t-1$, take Akan for example, holding all the other variables constant at $t-1$, the expected increase in number of slaves in South Dahomey at $t$ is 0.154, the slope value. The same reasoning then carries on for the other variables of South Dahomey, Sierra Leone, Akan and West Nigeria at $t-1$.
+
+**Q3 d)**
+The expected change in number of slaves exported in 1710 from Akan would be 0.335.  
+The expected change in number of slaves exported in 1720 from Sierra Leone would be $0.510^2 = 0.260$.
+
+## Question 4
+
+**Q4 a)**
+
+```{r echo=FALSE, results='asis'}
+coefs.all <- matrix(nrow = 2, ncol = 64)
+colnames(coefs.all) <- sapply(strsplit(colnames(slaves)[loc.cols], split = "...", fixed = TRUE), "[", 1)
+rownames(coefs.all) <- c("Slope", "Intercept")
+omit.cols <- which(sapply(loc.cols, function(col) all(slaves[, col] == slaves[1, col])))
+for (loc in setdiff(loc.cols, omit.cols)) {
+    ar.1.loc <- ar.ols(slaves[, loc], aic = FALSE, order.max = 1, demean = FALSE, intercept = TRUE)
+    coefs.all[1, loc] <- ar.1.loc$ar[, 1, 1]
+    coefs.all[2, loc] <- ar.1.loc$x.intercept
+}
+
+for (i in seq(1, 64, 6)) {
+    print(kable(coefs.all[, i:min((i+5), 64)], digits = 3))
+    cat("\n")
+}
+```
+
+The last 10 areas do not have estimated AR(1) models as their historical data is constant (10 for a very small value), and thus no valuable analysis can be performed on them.
+
+**Q4 b)**
+As all the slopes have magnitudes less than 1, we can see that all the 44 AR(1) models with estimates are probably stationary. As for the 10 that had no models, we cannot make any reasonable conclusion about their stationarity.
+
+## Question 5
+
+```{r echo=FALSE}
+slaves.pca <- prcomp(slaves[, loc.cols], center = TRUE, scale. = FALSE)
+slaves.pca.var <- sum(slaves.pca$sdev^2)
+```
+
+**Q5 a)**
+PC1 captures `r signif(slaves.pca$sdev[1]^2 / slaves.pca.var, 5)` of the variance.
+
+**Q5 b)**
+
+```{r echo=FALSE}
+plot(slaves$Year, slaves.pca$x[, 1],
+     xlab = "Year", ylab = "PC1 Score", type = "l",
+     main = "Plot of PC1 Score against Year")
+```
+
+The shape of the plot seems to be a peaked function, which increased over time up to a peak and then decreased over time after.
+
+**Q5 c)**
+Since we know the values of PC1 over time, and we know that PC1 captures a large proportion of the variance, PC1 can be treated as a good estimator of the variation over time. By subtracting the value of PC1 at each point in time, weighed by the weighing factor of each location, from the actual observed values at each location, we are essentially removing a large proportion of the trend over time, which is akin to detrending.
+
+**Q5 d)**
+
+```{r echo = FALSE}
+slaves.detrended <- as.data.frame(slaves)
+for (col in loc.cols) {
+    slaves.detrended[, col] <- slaves.detrended[, col] - slaves.pca$rotation[col, 1] * slaves.pca$x[, 1]
+}
+cols <- rainbow(4)
+matplot(slaves$Year, slaves.detrended[, loc.tmp], type = "l",
+        lty = 1, col = cols,
+        xlim = c(min(slaves$Year), max(slaves$Year) + 70),
+        xlab = "Year", ylab = "Number of exported slaves (detrended)",
+        main = "Plot of number of exported slaves (detrended) against years")
+legend("topright", legend = c(loc.tmp),
+       lty = 1, col = cols, cex = 0.5)
+```
+
+The new series look plausibly more detrended than before as the peaks are slighly reduced while the other areas are slightly increased.
+
+**Q5 e)**
+
+```{r echo=FALSE}
+ar.1.det <- ar.ols(slaves.detrended[, "S..Dahomey...Bight.of.Benin"], aic = FALSE, order.max = 1, demean = FALSE, intercept = TRUE)
+# set.seed(2018-10-12)
+ar.1.det.sim <- matrix(nrow=nrow(slaves.detrended), ncol = 20)
+a <- ar.1.det$x.intercept
+b <- ar.1.det$ar[1, 1, 1]
+innov.var <- ar.1.det$var.pred
+cols <- rainbow(20)
+
+for (i in 1:20) {
+    ar.1.det.sim[1, i] <- slaves.detrended[1, "S..Dahomey...Bight.of.Benin"]
+    for (t in 2:nrow(ar.1.det.sim)) {
+        ar.1.det.sim[t, i] <- a + b * ar.1.det.sim[t-1, i] + rnorm(1, sd=sqrt(innov.var))
+    }
+}
+matplot(slaves.detrended$Year, ar.1.det.sim, type="l",
+        xlab="Year", ylab="Number of exported slaves (detrended)", lty = 2, col = cols,
+        main="Plot of simulated AR(1) trajectories and actual data (South Dahomey)")
+lines(slaves.detrended$Year, slaves.detrended[, "S..Dahomey...Bight.of.Benin"])
+legend("topright", legend=c("Simulated", "Actual"),
+       lty=c(2, 1), col = c(cols[1], "black"))
+```
+
+The simulations match the data slightly better after detrending, as before the data was consistently higher than most of the simulations or lower than most of the simulations, but now it is less so and more centered, except in the later years where is is consistently lower than most of the simulations.
