@@ -1,0 +1,342 @@
+---
+title: "36-467 Homework 8"
+author:
+- Eu Jing Chua
+- eujingc
+date: "October 29, 2018"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+    - \usepackage{amsmath}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r echo=FALSE}
+library(knitr)
+demoruns <- read.csv("http://www.stat.cmu.edu/~cshalizi/dst/18/hw/08/demorun.csv")
+```
+
+## Question 1
+
+**Q1 a)**
+
+```{r echo=FALSE}
+slopes.10 <- vector(length = 30)
+for (i in 1:30) {
+    slopes.10[i] <- ar.ols(demoruns[1:10, i],
+                           aic = FALSE, order.max = 1,
+                           demean = FALSE, intercept = FALSE)$ar[1, 1, 1]
+}
+
+results <- c(mean(slopes.10), sd(slopes.10))
+names(results) <- c("Mean", "Std. Dev.")
+kable(results, col.names = "Statistics",
+      caption = "First 10 observations")
+
+hist(slopes.10, breaks = 10,
+     main = "Histogram of Slopes from First 10 Obervations",
+     xlab = "Slope")
+```
+
+\newpage
+
+**Q1 b)**
+
+```{r echo=FALSE}
+slopes.100 <- vector(length = 30)
+for (i in 1:30) {
+    slopes.100[i] <- ar.ols(demoruns[1:100, i],
+                            aic = FALSE, order.max = 1,
+                            demean = FALSE, intercept = FALSE)$ar[1, 1, 1]
+}
+
+results <- c(mean(slopes.100), sd(slopes.100))
+names(results) <- c("Mean", "Std. Dev.")
+kable(results, col.names = "Statistics",
+      caption = "First 100 observations")
+
+hist(slopes.100, breaks = 10,
+     main = "Histogram of Slopes from First 100 Obervations",
+     xlab = "Slope")
+```
+
+\newpage
+
+**Q1 c)**
+
+```{r echo=FALSE}
+slopes.1000 <- vector(length = 30)
+for (i in 1:30) {
+    slopes.1000[i] <- ar.ols(demoruns[1:1000, i],
+                             aic = FALSE, order.max = 1,
+                             demean = FALSE, intercept = FALSE)$ar[1, 1, 1]
+}
+
+results <- c(mean(slopes.1000), sd(slopes.1000))
+names(results) <- c("Mean", "Std. Dev.")
+kable(results, col.names = "Statistics",
+      caption = "First 1000 observations")
+
+hist(slopes.1000, breaks = 10,
+     main = "Histogram of Slopes from First 1000 Obervations",
+     xlab = "Slope")
+```
+
+\newpage
+
+**Q1 d)**
+
+```{r echo=FALSE}
+slopes.10000 <- vector(length = 30)
+for (i in 1:30) {
+    slopes.10000[i] <- ar.ols(demoruns[1:10000, i],
+                              aic = FALSE, order.max = 1,
+                              demean = FALSE, intercept = FALSE)$ar[1, 1, 1]
+}
+
+results <- c(mean(slopes.10000), sd(slopes.10000))
+names(results) <- c("Mean", "Std. Dev.")
+kable(results, col.names = "Statistics",
+      caption = "All observations")
+
+hist(slopes.10000, breaks = 10,
+     main = "Histogram of Slopes from All Obervations",
+     xlab = "Slope")
+```
+
+**Q1 e)**
+
+```{r echo=FALSE}
+slopes.mat <- matrix(c(slopes.10,
+                       slopes.100,
+                       slopes.1000,
+                       slopes.10000),
+                     byrow = TRUE, ncol = 30, nrow = 4)
+sample.sizes <- c(10, 100, 1000, 10000)
+
+matplot(log(sample.sizes), slopes.mat,
+        type = "o", pch = 1,
+        xlab = "Log Sample Size", ylab = "Slope")
+```
+
+The estimates are converging, as the variance at each increasing sample size is decreasing.
+
+**Q1 f)**
+
+```{r echo = FALSE}
+plot(log(sample.sizes), log(apply(slopes.mat, 1, var)),
+     type = "o", pch = 1,
+     xlab = "Log Sample Size", ylab = "Log Var of slope")
+```
+
+This shows that $Var[\est{b}_n] \propto \frac{1}{n}$, as the plot of the log quantities is roughly a negative linear relationship.
+
+**Q1 g)**
+The best guess would be the mean of the slopes from using all the 10000 runs of the simulation, which is `r signif(mean(slopes.10000), 3)`.
+
+## Question 2
+
+**Q2 a)**
+\begin{align}
+X(t + 1) - b X(t) &= \beta X(t) + \epsilon(t + 1) - b X(t) \\
+    &= (\beta - b) X(t) + \epsilon(t + 1)
+\end{align}
+
+**Q2 b)**
+\begin{align}
+\E{X(t + 1) - b X(t)} &= \E{(\beta - b) X(t) + \epsilon(t + 1)} \\
+    &= (\beta - b) \E{X(t)} + \E{\epsilon(t + 1)} \\
+    &= 0
+\end{align}
+
+**Q2 c)**
+\begin{align}
+\E{\left( X(t + 1) - b X(t) \right)^2} &= \left( \E{X(t + 1) - b X(t)} \right)^2 + \Var{X(t + 1) - b X(t)} \\
+    &= 0 + \Var{X(t + 1)} + b^2 \Var{X(t)} - 2 \cdot \Cov{X(t + 1), b X(t)} \\
+    &= \frac{\tau^2}{1 - \beta^2} + b^2 \frac{\tau^2}{1 - \beta^2} - 2b \frac{\beta \tau^2}{1 - \beta^2} \\
+    &= \tau^2 \left( \frac{b^2 - 2b \beta + 1}{1 - \beta^2} \right) \\
+    &= \tau^2 \left(\frac{1 - \beta^2 + b^2 - 2b \beta + \beta^2}{1 - \beta^2} \right) \\
+    &= \tau^2 \left(1 + \frac{(\beta - b)^2}{1 - \beta^2} \right)
+\end{align}
+
+**Q2 d)**
+\begin{align}
+\frac{dm}{db} &= \frac{d}{db} \left[ \tau^2 \left(1 + \frac{(\beta - b)^2}{1 - \beta^2} \right) \right] \\
+    &= \tau^2 (-2) \frac{(\beta - b)}{1 - \beta^2} \\
+    &= -2 \tau^2 \frac{\beta - b}{1 - \beta^2} \\
+    &= 0 \iff \beta = b
+\end{align}
+
+**Q2 e)**
+\begin{align}
+\frac{d^2m}{db^2} &= \frac{d}{db} \left[ -2 \tau^2 \frac{\beta - b}{1 - \beta^2} \right] \\
+    &= \frac{2 \tau^2}{1 - \beta^2}
+\end{align}
+
+**Q2 f)**
+\begin{align}
+\frac{dM_n}{db}(b) &= \frac{1}{n - 1} \frac{d}{db} \left[ \sum_{t = 1}^{n - 1}{\left( X(t + 1) - bX(t) \right)^2} \right] \\
+    &= \frac{1}{n - 1} \left[ \sum_{t = 1}^{n - 1}{\frac{d}{db} \left( X(t + 1) - bX(t) \right)^2} \right] \\
+    &= \frac{1}{n - 1} \left[ \sum_{t = 1}^{n - 1}{(-2 X(t)) \left( X(t + 1) - bX(t) \right)} \right] \\
+    &= \frac{-2}{n - 1} \left[ \sum_{t = 1}^{n - 1}{X(t) \left( X(t + 1) - bX(t) \right)} \right] \\
+\end{align}
+
+**Q2 g)**
+If $b = \beta$,
+
+\begin{align}
+\frac{dM_n}{db}(\beta) &= \frac{-2}{n - 1} \left[ \sum_{t = 1}^{n - 1}{X(t) \left( X(t + 1) - \beta X(t) \right)} \right] \\
+    &= \frac{-2}{n - 1} \left[ \sum_{t = 1}^{n - 1}{X(t) \left( \beta X(t) + \epsilon(t + 1) - \beta X(t) \right)} \right] \\
+    &= \frac{-2}{n - 1} \sum_{t = 1}^{n - 1}{X(t) \epsilon(t + 1)}
+\end{align}
+
+**Q2 h)**
+Since $X(t)$ and $\epsilon(t + 1)$ are independent,
+
+\begin{align}
+\Var{X(t)\epsilon(t + 1)} &= \Var{X(t)} \cdot \Var{\epsilon(t + 1)} \\
+    &= \frac{\tau^2}{1 - \beta^2} \cdot \tau^2 \\
+    &= \frac{\tau^4}{1 - \beta ^2}
+\end{align}
+
+**Q2 i)**
+\begin{align}
+&\Cov{X(t) \epsilon(t + 1), X(t + h) \epsilon(t + h + 1)} \\
+    &= \E{X(t) \epsilon(t + 1) X(t + h) \epsilon(t + h + 1)} + \E{X(t) \epsilon(t + 1)} \E{X(t + h) \epsilon(t + h + 1)} \\
+    &= \E{X(t) \epsilon(t + 1) X(t + h) \epsilon(t + h + 1)} + \E{X(t)} \E{\epsilon(t + 1)} \E{X(t + h)} \E{\epsilon(t + h + 1)} \\
+    &= \E{X(t) \epsilon(t + 1) X(t + h) \epsilon(t + h + 1)} + 0, \hspace{0.2in} \E{\epsilon(t + 1)} = 0 \\
+    &= \E{\E{X(t) \epsilon(t + 1) X(t + h) \epsilon(t + h + 1) | X(t + h)}} \\
+    &= \E{X(t) \epsilon(t + 1) X(t + h) \cdot \E{\epsilon(t + h + 1) | X(t + h)}} \\
+    &= \E{X(t) \epsilon(t + 1) X(t + h) \cdot 0} \\
+    &= 0
+\end{align}
+
+**Q2 j)**  
+Note that $\frac{dM_n}{db}(\beta) = -2 \E{X(t) \epsilon(t + 1)}$  
+Also from above, we know that $\sum_{h = 1}^{\infty} \Cov{X(t) \epsilon(t + 1), X(t + h) \epsilon(t + h + 1)} = 0 < \infty$  
+Thus as $n \to \infty$, $\E{X(t) \epsilon(t + 1)} \to 0 \implies \frac{dM_n}{db} \to 0$
+
+**Q2 k)**
+Let $\est{b}_n = \text{argmin}_b M_n(b)$  
+We know that $\lim_{n \to \infty} M_n(b) = \E{(X(t + 1) - b X(t))^2} = m(b)$.  
+From 2d), we know that $b = \beta$ minimizes $m(b)$ and it is a minimum as in 2e), we know $\frac{d^2m}{db^2} > 0$.  
+Thus, we can conclude that as $n \to \infty$, $\est{b}_n \to \beta$
+
+**Q2 l)**
+\begin{align}
+\Var{\frac{dM_n}{db}(\beta)} &= \Var{\frac{-2}{n - 1} \sum_{t = 1}^{n - 1}{X(t) \epsilon(t + 1)}} \\
+    &= \frac{4}{(n - 1)^2} \sum_{t = 1}^{n - 1}{\Var{X(t) \epsilon(t + 1)}}, \text{as the covariances are 0} \\
+    &= \frac{4}{(n - 1)^2} (n - 1) \frac{\tau^4}{1 - \beta^2} \\
+    &= \frac{4}{(n - 1)} \frac{\tau^4}{1 - \beta^2}
+\end{align}
+
+**Q2 m)**
+\begin{align}
+\Var{\est{b}_n} &\approx \left(\frac{d^2m}{db^2} \right)^{-2} \Var{\frac{dM_n}{db}(\beta)} \\
+    &= \frac{(1 - \beta^2)^2}{4 \tau^4} \frac{4}{(n - 1)} \frac{\tau^4}{1 - \beta^2} \\
+    &= \frac{1 - \beta^2}{n - 1}
+\end{align}
+
+**Q2 n)**
+
+```{r echo=FALSE}
+var.ests <- c((1 - mean(slopes.10)^2) / (10 - 1),
+              (1 - mean(slopes.100)^2) / (100 - 1),
+              (1 - mean(slopes.1000)^2) / (1000 - 1),
+              (1 - mean(slopes.10000)^2) / (10000 - 1))
+results <- matrix(c(sqrt(var.ests),
+                    c(sd(slopes.10), sd(slopes.100), sd(slopes.1000), sd(slopes.10000))),
+                  ncol = 2, nrow = 4)
+rownames(results) <- c("10", "100", "1000", "10000")
+kable(results, digits = 5, col.names = c("Est. Std. Err.", "Std. Dev."))
+```
+
+The estimates match the actual standard deviations quite well, and they should match as the sum of covariances is finite and n becomes relatively large, and since we also know the underlying model was AR(1) which we model it with.
+
+**Q2 o)**
+We know that $\Var{\epsilon(t)} = \tau^2$, and $\frac{d^2m}{db^2} \propto \tau^2$. When there is more noise, this increase in variance causes each point to potentially be perturbed more at each step. Thus, as we can see from the equation for $\frac{d^2m}{db^2}$, increased variance in noise causes the curvature to increase too.
+
+
+## Question 3
+
+**Q3 a)**
+
+```{r echo=FALSE}
+remorun <- read.csv("http://www.stat.cmu.edu/~cshalizi/dst/18/hw/08/remorun.csv")
+
+slopes.remo <- vector(length = 30)
+for (i in 1:30) {
+    slopes.remo[i] <- ar.ols(remorun[, i],
+                             aic = FALSE, order.max = 1,
+                             demean = FALSE, intercept = FALSE)$ar[1, 1, 1]
+}
+
+results <- c(mean(slopes.remo), sd(slopes.remo))
+names(results) <- c("Mean", "Std. Dev.")
+kable(signif(results, 5), col.names = "Statistics",
+      caption = "All observations")
+
+hist(slopes.remo, breaks = 10,
+     main = "Histogram of Slopes from All Obervations",
+     xlab = "Slope")
+```
+
+**Q3 b)**
+\begin{align}
+\frac{d^2M_n}{db^2}(b)
+    &= \frac{d}{db} \left[ \frac{-2}{n - 1} \sum_{t = 1}^{n - 1} X(t) (X(t + 1) - b X(t)) \right] \\
+    &= \frac{-2}{n - 1} \sum_{t = 1}^{n - 1} \frac{d}{db} \left[ X(t) (X(t + 1) - b X(t)) \right] \\
+    &= \frac{-2}{n - 1} \sum_{t = 1}^{n - 1}  -X^2(t) \\
+    &= \frac{2}{n - 1} \sum_{t = 1}^{n - 1}  X^2(t)
+\end{align}
+
+$b$ does not appear in this formula as the curvature of $M_n(b)$ is independent of $b$, as it is a parabolic function with respect to $b$.
+
+**Q3 c)**
+
+```{r echo=FALSE}
+curvature <- 2 * sum(remorun[, 1]^2) / (nrow(remorun) - 1)
+```
+
+$\frac{d^2M_n}{db^2} = `r signif(curvature, 5)`$
+
+**Q3 d)**
+Regardless of the real distribution of $X(t)$, we can still find the best fitting AR(1) model with no intercept by minimizing the mean-squared error, or $M_n(b)$, hence 2f) is still relevant in this process.
+
+**Q3 e)**
+```{r echo=FALSE}
+n <- nrow(remorun)
+slope.est <- mean(slopes.remo)
+var.est <- sum((2 * remorun[1:(n-1), 1] * (remorun[2:n, 1] - slope.est * remorun[1:(n-1), 1]))^2) / (n - 1)^2
+kable(var.est, col.name = "Estimated Variance")
+```
+
+This is a reasonable approximation of the variance as since we know that the runs are stationary with expectation 0, the first moment $\E{\frac{dM_n}{db}(\beta)} \approx 0$ as $X(t + 1) \approx \est{b}_n X(t)$. Thus, $\Var{\frac{dM_n}{db}(\beta)} \approx \E{(\frac{dM_n}{db}(\beta))^2}$.
+
+**Q3 f)**
+
+```{r echo=FALSE}
+var.slope.est <- var.est / curvature^2
+var.slope.act <- var(slopes.remo)
+results <- c(var.slope.est, var.slope.act)
+names(results) <- c("Estimated", "Across Runs")
+kable(results, col.names = "Slope variance")
+```
+
+The estimated variance closely matches that found across simulation runs. They should match as $n$ is large, so $M_n^{''} \to m^{''}$, as found in 3c). Combining with the result in 3e), we can get a good approximation of $\Var{\est{b}_n}$ with large $n$.
+
