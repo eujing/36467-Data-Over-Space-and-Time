@@ -1,0 +1,295 @@
+---
+title: "36-467 Homework 10"
+author:
+- Eu Jing Chua
+- eujingc
+date: "November 12, 2018"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+## Question 1
+
+```{r}
+data(lynx)
+years <- 1821:1934
+
+plot(lynx, xlab = "Year", ylab = "Number of Lynxes",
+     main = "Plot of Number of Lynxes against Year")
+```
+
+The peaks are roughly 10 years apart.
+
+## Question 2
+
+```{r}
+acf(lynx, years, type = "covariance", main = "ACF of Lynx Counts over Time")
+```
+
+The peak of the second positive region is roughly at lag 10 years. The autocovariance at lag 10 is $`r signif(acf(lynx, years, type = "covariance", plot = FALSE)[["acf"]][11], 3)`$.
+
+## Question 3
+
+```{r}
+library(knitr)
+lynx.ar.1 <- ar.ols(lynx, aic = FALSE, order.max = 1, demean = FALSE, intercept = TRUE)
+lynx.ar.2 <- ar.ols(lynx, aic = FALSE, order.max = 2, demean = FALSE, intercept = TRUE)
+lynx.ar.3 <- ar.ols(lynx, aic = FALSE, order.max = 3, demean = FALSE, intercept = TRUE)
+
+results <- matrix(nrow = 3, ncol = 4)
+colnames(results) <- c("Intercept", "X(t-1)", "X(t-2)", "X(t-3)")
+rownames(results) <- c("AR(1)", "AR(2)", "AR(3)")
+results[1, 1] <- lynx.ar.1$x.intercept
+results[1, 2] <- lynx.ar.1$ar[1]
+results[2, 1] <- lynx.ar.2$x.intercept
+results[2, 2:3] <- lynx.ar.2$ar[1:2]
+results[3, 1] <- lynx.ar.3$x.intercept
+results[3, 2:4] <- lynx.ar.3$ar[1:3]
+kable(results, digits = 3,
+      caption = "Coefficients of AR(p) models")
+```
+
+The coefficient of $X(t - 1)$ does not really stay the same, and we should not expect it to. As we increase $p$, the degrees of freedom for fitting increases, allowing for other lags to play a role in fitting a model with less in-sample error. This will most probably change the coefficient of $X(t - 1)$, as the data appears to be periodic and an AR(1) model will underfit the periodic trend.
+
+## Question 4
+
+In the previous `sim.ar1` function, we assumed the distribution of the innovation was Gaussian with $\mu = 0$ and constant $\sigma^2$ and thus sampled such a Gaussian distribution for the simulated innovations.
+
+However, this new simulator resamples the estimated innovations, or residuals, from the input fitted AR model, which acts as an empirical distribution for the innovations.  
+
+The input `mdl` would have to a fitted `ar` model with intercept, $X(t - 1)$ coefficient, and residuals.
+
+## Question 5
+
+**Q5 a)**
+
+```{r}
+sim.ar.1 <- function(mdl, x.start, n) {
+    x <- vector(length = n)
+
+    # Initial values
+    x[1] <- x.start
+
+    # Resampled innovation
+    epsilon <- sample(mdl$resid[-1], replace = TRUE, size = n-1)
+
+    # Simulate rest of AR
+    for (i in 2:n) {
+        x[i] <- mdl$x.intercept + mdl$ar[1] * x[i - 1] + epsilon[i - 1]
+    }
+
+    return(x)
+}
+
+ar.1.estimator <- function(x) {
+    # Fit an AR(1) model to the simulated data
+    ar.1.fit <- ar.ols(x, aic = FALSE, order.max = 1, demean = FALSE, intercept = TRUE)
+
+    # Return the coefficients
+    return(c(a = ar.1.fit$x.intercept,
+             b1 = ar.1.fit$ar[1]))
+}
+
+n <- length(years)
+lynx.ar.1.fits <- replicate(100, ar.1.estimator(sim.ar.1(lynx.ar.1, lynx[1], n)))
+
+results <- apply(lynx.ar.1.fits, 1, sd)
+names(results) <- c("Intercept", "X(t - 1)")
+kable(results, digits = 3, col.names = "Coefficient",
+      caption = "Standard Error of Coefficients for AR(1) model")
+```
+
+**Q5 b)**
+
+```{r}
+sim.ar.2 <- function(mdl, x.start, n) {
+    x <- vector(length = n)
+
+    # Initial values
+    x[1:2] <- x.start[1:2]
+
+    # Resampled innovation
+    epsilon <- sample(mdl$resid[-c(1:2)], replace = TRUE, size = n-2)
+
+    # Simulate rest of AR
+    for (i in 3:n) {
+        x[i] <- mdl$x.intercept + mdl$ar[1] * x[i - 1] + mdl$ar[2] * x[i - 2] + epsilon[i - 2]
+    }
+
+    return(x)
+}
+
+ar.2.estimator <- function(x) {
+    # Fit an AR(2) model to the simulated data
+    ar.2.fit <- ar.ols(x, aic = FALSE, order.max = 2, demean = FALSE, intercept = TRUE)
+
+    # Return the coefficients
+    return(c(a = ar.2.fit$x.intercept,
+             b1 = ar.2.fit$ar[1],
+             b2 = ar.2.fit$ar[2]))
+}
+
+n <- length(years)
+lynx.ar.2.fits <- replicate(100, ar.2.estimator(sim.ar.2(lynx.ar.2, lynx[1:2], n)))
+
+results <- apply(lynx.ar.2.fits, 1, sd)
+names(results) <- c("Intercept", "X(t - 1)", "X(t - 2)")
+kable(results, digits = 3, col.names = "Coefficient",
+      caption = "Standard Error of Coefficients for AR(2) model")
+```
+
+**Q5 c)**
+
+```{r}
+sim.ar.3 <- function(mdl, x.start, n) {
+    x <- vector(length = n)
+
+    # Initial values
+    x[1:3] <- x.start[1:3]
+
+    # Resampled innovation
+    epsilon <- sample(mdl$resid[-c(1:3)], replace = TRUE, size = n-3)
+
+    # Simulate rest of AR
+    for (i in 4:n) {
+        x[i] <- mdl$x.intercept + mdl$ar[1] * x[i - 1] + mdl$ar[2] * x[i - 2] + mdl$ar[3] * x[i - 3] + epsilon[i - 3]
+    }
+
+    return(x)
+}
+
+ar.3.estimator <- function(x) {
+    # Fit an AR(3) model to the simulated data
+    ar.3.fit <- ar.ols(x, aic = FALSE, order.max = 3, demean = FALSE, intercept = TRUE)
+
+    # Return the coefficients
+    return(c(a = ar.3.fit$x.intercept,
+             b1 = ar.3.fit$ar[1],
+             b2 = ar.3.fit$ar[2],
+             b3 = ar.3.fit$ar[3]))
+}
+
+n <- length(years)
+lynx.ar.3.fits <- replicate(100, ar.3.estimator(sim.ar.3(lynx.ar.3, lynx[1:3], n)))
+
+results <- apply(lynx.ar.3.fits, 1, sd)
+names(results) <- c("Intercept", "X(t - 1)", "X(t - 2)", "X(t - 3)")
+kable(results, digits = 3, col.names = "Coefficient",
+      caption = "Standard Error of Coefficients for AR(3) model")
+```
+
+## Question 6
+
+**Q6 a)**
+
+```{r}
+lynx.ar.2.ar.3.fits <- replicate(100, ar.3.estimator(sim.ar.2(lynx.ar.2, lynx[1:2], n)))
+b3.star <- lynx.ar.2.ar.3.fits["b3", ]
+kable(as.array(summary(b3.star)), digits = 3,
+      col.names = c("Statistic", "Value"),
+      caption = "Summary statistics of b3.star")
+kable(as.array(summary(abs(b3.star))), digits = 3,
+      col.names = c("Statistic", "Value"),
+      caption = "Summary statistics of abs(b3.star)")
+```
+
+**Q6 b)**
+
+```{r}
+b3.hat <- lynx.ar.3$ar[3]
+mean(abs(b3.hat) >= abs(b3.star))
+```
+
+The quantity has a value of `r mean(abs(b3.hat) >= abs(b3.star))`, and is a p-value. The quantity is the proportion of $|\est{b}_3| \ge |b^*_3|$ in 100 runs, which approximates $P(|\est{b}_3| \ge |b^*_3|)$. This is a two-tailed test of the following:
+
+\begin{align}
+H_0: \est{b}_3 = b^*_3 \\
+H_a: \est{b}_3 \ne b^*_3
+\end{align}
+
+This essentially is an approximate test of whether the AR(3) model is significantly differently from the AR(2) model.
+
+## Question 7
+
+```{r}
+# Reuse lynx.ar.3.fits as it is the same simulation of refitting an AR(3)
+# to 100 simulated runs of an AR(3)
+ar.3.CI <- apply(lynx.ar.3.fits, 1, quantile, prob = c(0.025, 0.975))[, "b3"]
+names(ar.3.CI) <- c("Lower", "Upper")
+
+kable(ar.3.CI, col.names = "Coefficient",
+      caption = "95% Confidence Interval for b3")
+```
+
+The confidence interval contains 0. This does form a test for whether the coefficient of $X(t - 3)$ is 0, which has a alse positive rate of 5%.
+
+## Question 8
+
+**Q8 a)**
+
+```{r fig.height = 8}
+par(mfrow = c(3, 1))
+lynx.ar.1.sim <- sim.ar.1(lynx.ar.1, lynx[1], n)
+acf(lynx.ar.1.sim, type = "covariance", main = "ACF of AR(1) simulation", lag.max = n)
+
+lynx.ar.2.sim <- sim.ar.2(lynx.ar.2, lynx[1:2], n)
+acf(lynx.ar.2.sim, type = "covariance", main = "ACF of AR(2) simulation", lag.max = n)
+
+lynx.ar.3.sim <- sim.ar.3(lynx.ar.3, lynx[1:3], n)
+acf(lynx.ar.3.sim, type = "covariance", main = "ACF of AR(3) simulation", lag.max = n)
+```
+
+In the ACF of the AR(1) plot, there is only a little resemblance of a periodic pattern, with largely varying periods and amplitudes of each crest and trough.
+In the ACF of the AR(2) plot, a more steady oscillatory pattern can be observed, with more similar periods that appear to be closer to the inter-peak interval of the original ACF. The oscillatory pattern also appears to be damped, with the amplitudes in general decreasing, such as in the original ACF.
+In the ACF of the AR(3) plot, we see that it is quite similar to that of the ACF of the AR(2) plot. However, it also has a rough period of 10 and the oscillatory pattern here also appears to be damped.
+
+**Q8 b)**
+
+```{r}
+lynx.actual.cov <- acf(lynx, years, type = "covariance", plot = FALSE)[["acf"]][11]
+lynx.ar.1.sims <- replicate(100, sim.ar.1(lynx.ar.1, lynx[1], n))
+lynx.ar.1.lags <- apply(lynx.ar.1.sims, 2, function(x) acf(x, type = "covariance", plot = FALSE)$acf)
+hist(lynx.ar.1.lags[, 10 + 1], col = "lightblue", breaks = 10,
+     xlim = c(min(lynx.ar.1.lags[, 11]), max(lynx.ar.1.lags[, 11], lynx.actual.cov)),
+     xlab = "Covariance", main = "Histogram of ACF of Simulated AR(1) at lag 10")
+abline(v = lynx.actual.cov, col = "red")
+```
+
+**Q8 c)**
+
+```{r fig.height = 3.5}
+lynx.ar.2.sims <- replicate(100, sim.ar.2(lynx.ar.2, lynx[1:2], n))
+lynx.ar.2.lags <- apply(lynx.ar.2.sims, 2, function(x) acf(x, type = "covariance", plot = FALSE)$acf)
+hist(lynx.ar.2.lags[, 10 + 1], col = "lightblue", breaks = 10,
+     xlim = c(min(lynx.ar.2.lags[, 11]), max(lynx.ar.2.lags[, 11], lynx.actual.cov)),
+     xlab = "Covariance", main = "Histogram of ACF of Simulated AR(2) at lag 10")
+abline(v = lynx.actual.cov, col = "red")
+```
+
+**Q8 d)**
+
+```{r}
+lynx.ar.3.sims <- replicate(100, sim.ar.3(lynx.ar.3, lynx[1:3], n))
+lynx.ar.3.lags <- apply(lynx.ar.3.sims, 2, function(x) acf(x, type = "covariance", plot = FALSE)$acf)
+hist(lynx.ar.3.lags[, 10 + 1], col = "lightblue", breaks = 10,
+     xlim = c(min(lynx.ar.3.lags[, 11]), max(lynx.ar.3.lags[, 11], lynx.actual.cov)),
+     xlab = "Covariance", main = "Histogram of ACF of Simulated AR(3) at lag 10")
+abline(v = lynx.actual.cov, col = "red")
+```
