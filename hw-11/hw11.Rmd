@@ -1,0 +1,234 @@
+---
+title: "36-467 Homework 11"
+author:
+- Eu Jing Chua
+- eujingc
+date: "November 19, 2018"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+```{r}
+data <- read.csv("http://www.stat.cmu.edu/~cshalizi/statcomp/14/labs/07/ckm_nodes.csv")
+```
+
+## Q1
+
+```{r}
+library(knitr)
+
+# Remove entries with adoption_date == NA
+data <- subset(data, !is.na(adoption_date))
+kable(nrow(data), caption = "Number of doctors without unknown adoption dates")
+```
+
+## Q2
+```{r}
+adoption.start.counts <- table(data$adoption_date)[1:17]
+plot(1:17, adoption.start.counts,
+     xlab = "Month", ylab = "Count",
+     main = "Number of doctors who started prescribing in each month", type = "o")
+```
+
+## Q3
+```{r}
+adoption.start.cum <- cumsum(adoption.start.counts)
+plot(1:17, adoption.start.cum,
+     xlab = "Month", ylab = "Cumulative Count",
+     main = "Cumulative number of doctors who prescribed by end of each month", type = "o")
+```
+
+## Q4
+```{r}
+adoption.potential.counts <- vector(length = 17)
+for (i in 1:17) {
+    adoption.potential.counts[i] <- sum(data$adoption_date > i)
+}
+plot(1:17, adoption.potential.counts,
+     xlab = "Month", ylab = "Count", col = "red",
+     ylim = c(min(adoption.potential.counts), nrow(data)),
+     main = "Number of doctors who did not prescribe by end of each month", type = "o")
+lines(1:17, adoption.potential.counts + adoption.start.cum, type = "o",
+      col = "blue")
+legend("right", legend = c("Count of non-prescribing doctors", "Sum with previous plot"),
+       col = c("Red", "Blue"),
+       lty = 1, pch = 1)
+```
+
+## Q5
+```{r}
+adoption.fraction <- adoption.start.counts[2:17] / adoption.potential.counts[1:16]
+plot(2:17, adoption.fraction,
+     yaxt = "n",
+     xlab = "Month", ylab = "Fraction",
+     main = "Fraction of doctors who started prescribing each month", type = "o")
+axis(2, at = adoption.fraction, labels = round(adoption.fraction, 2))
+```
+
+## Q6
+```{r}
+plot(adoption.start.cum[1:16], adoption.fraction,
+     yaxt = "n",
+     xlab = "Cumulative count of already prescribing doctors",
+     ylab = "Fraction of doctors who started prescribing", type = "o")
+axis(2, at = adoption.fraction, labels = round(adoption.fraction, 2))
+```
+
+The shape is shows an increasing fraction of doctors who start prescribing as more doctors already prescribe. However, this is only up to a certain point, where it sharply decreases, then starts roughly increasing again, followed finally by another sharp decrease. This resembles some form of a damped oscillation.
+
+## Q7
+```{r}
+library(latex2exp)
+plot(adoption.start.cum[1:16], adoption.fraction,
+     yaxt = "n",
+     xlab = TeX("X_I(t)"),
+     ylab = TeX("\\hat{p}_{SI}(t+1)"), type = "o",
+     main = TeX("Plot of \\hat{p}_{SI}(t+1) against X_I(t)"))
+axis(2, at = adoption.fraction, labels = round(adoption.fraction, 2))
+```
+
+$\est{p}_{SI}(t+1)$ is represented by `adoption.fraction`, as it counts the proportion of those who had not been prescribing before, but transitioned into prescribing for each month. $X_I(t)$ is represented by `adoption.start.cum` in the code, as it counts the total number of doctors prescribing by the end of each month.
+
+## Q8
+```{r}
+p.SI <- adoption.fraction
+p.SI.var <-  p.SI * (1 - p.SI) / adoption.potential.counts[1:16]
+plot(2:17, p.SI.var, type = "o",
+     xlab = "Month", ylab = TeX("\\hat{Var}(\\hat{p}_{SI})"),
+     main = TeX("\\hat{Var}(\\hat{p}_{SI}) for each month"))
+kable(max(p.SI.var) / min(p.SI.var),
+      caption = "Ratio of largest to smallest estimated variance")
+```
+
+## Q9
+```{r}
+X.I <- adoption.start.cum
+lm.fit <- lm(p.SI ~ 0 + X.I[1:16])
+alpha <- coef(lm.fit)[[1]]
+
+kable(alpha,
+      caption = "Estimate of $\\alpha$")
+```
+
+\newpage
+
+## Q10
+```{r echo=TRUE}
+sim.adoption <- function(alpha, n, X.I.init, months) {
+    # alpha: weight such that p_SI(t) = alpha * X_I(t-1)
+    # n: total number in population
+    # X.I.init: Initial number of "infected"
+    # months: number of months to simulate, where each time step is a month
+    # Returns: Vector of counts of total infected by the month as indexed
+
+    X.I <- vector(length = months)
+
+    # Initial counts of "Infected"
+    X.I[1] <- X.I.init
+
+    # Edge case
+    if (months < 2) {
+        return(X.I)
+    }
+
+    # Simulate rest of the values
+    for (t in 2:months) {
+        # Count of "Susceptible" at t-1
+        X.S <- n - X.I[t - 1]
+
+        # Count of those transitioning from S to I follows binomial dist.
+        # with m = X.S(t-1) and p.SI(t) = alpha * X.I(t-1)
+        changed <- rbinom(1, X.S, alpha * X.I[t - 1])
+
+        # Update those who changed from S to I
+        X.I[t] <- X.I[t - 1] + changed
+    }
+
+    return(X.I)
+}
+```
+
+## Q11
+```{r fig.height = 4}
+sims.X.I <- replicate(100, sim.adoption(alpha, nrow(data), adoption.start.counts[[1]], 17))
+sim.percentiles <- apply(sims.X.I, 1, quantile, probs = c(0.05, 0.95))
+
+matplot(1:17, t(sim.percentiles),
+        ylim = c(min(sim.percentiles, adoption.start.cum),
+                 max(sim.percentiles, adoption.start.cum)),
+        type = "o", pch = 1, col = c("blue", "red"), lty = 2,
+        xlab = "Month", ylab = "Cumulative Count",
+        main = "Cumulative count of doctors who precribed by each month")
+lines(1:17, adoption.start.cum, type = "o")
+legend("topleft",
+       legend = c("95% Percentile of Simulations",
+                  "5% Percentile of Simulations",
+                  "Actual Data"),
+       col = c("red", "blue", "black"),
+       lty = c(2, 2, 1), pch = 1, cex = 0.7)
+```
+
+The plot shows that the model, using the estimated value of $\alpha = `r signif(alpha, 3)`$, does not work well as the actual data is consistently above the $5^{th}$ and $95^{th}$ percentile of the simulations, hence is consistently underestimating.
+
+## Q12
+```{r fig.height = 4}
+sims.X.I <- replicate(100, sim.adoption(2 * alpha, nrow(data), adoption.start.counts[[1]], 17))
+sim.percentiles <- apply(sims.X.I, 1, quantile, probs = c(0.05, 0.95))
+
+matplot(1:17, t(sim.percentiles),
+        ylim = c(min(sim.percentiles, adoption.start.cum),
+                 max(sim.percentiles, adoption.start.cum)),
+        type = "o", pch = 1, col = c("blue", "red"), lty = 2,
+        xlab = "Month", ylab = "Cumulative Count",
+        main = "Cumulative count of doctors who precribed by each month")
+lines(1:17, adoption.start.cum)
+lines(1:17, adoption.start.cum, type = "o")
+legend("topleft",
+       legend = c("95% Percentile of Simulations",
+                  "5% Percentile of Simulations",
+                  "Actual Data"),
+       col = c("red", "blue", "black"),
+       lty = c(2, 2, 1), pch = 1, cex = 0.7)
+```
+
+Since our model with $\alpha = `r signif(alpha, 3)`$ consistently underestimates compared to the actual data, increasing $\alpha$ would cause the model to estimate more transitions from non-prescription to prescriptions with a higher probability, counteracting the effect of the underestimation. Hence, this model using $2 * \alpha$ seems to perform better, where more of the actual data seems to lie close to or within the bounds of the simulations.
+
+
+```{r}
+sim.model <- function(a,n,x1,t){
+    sim.vector <- rep(0,n)
+    sim.vector[1:x1] = 1
+    for (i in 2:t){
+        xt = length(which(sim.vector!=0))
+        pt = a*xt
+        remain = length(which(sim.vector==0))
+        new.add = rbinom(prob=pt,size=remain,n=1)
+        sim.vector[which(sim.vector==0)[1:new.add]] = i
+    }
+    num.doctors <- rep(0,(t+1))
+    #Doctors never adopted
+    num.doctors[t+1] = length(which(sim.vector==0))
+    for (j in 1:t){
+        num.doctors[j] = length(which(sim.vector<=j & sim.vector >0))
+    }
+    return (num.doctors)
+}
+```
+
