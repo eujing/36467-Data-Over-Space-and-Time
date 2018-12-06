@@ -1,0 +1,316 @@
+---
+title: "36-467 Homework 12"
+author:
+- Eu Jing Chua
+- eujingc
+date: "December 3, 2018"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+    - \usepackage{longtable}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+## Question 1
+
+```{r}
+library(knitr)
+library(kableExtra)
+```
+
+
+```{r cache = TRUE}
+dicty <- read.table("http://www.stat.cmu.edu/~cshalizi/dst/18/hw/12/dicty-seq-1.dat")
+table.dicty <- table(dicty)
+kable(table.dicty,
+      caption = "Counts of each base",
+      longtable = TRUE)
+```
+
+The sequence has `r nrow(dicty)` bases.
+
+## Question 2
+
+```{r cache = TRUE}
+# From Homework 12 handout
+symbseq.to.blocks <- function(s, L) {
+    n <- length(s)
+    collapser <- function(i) {
+        paste(s[i:(i + L - 1)], collapse = "")
+    }
+    max.index <- n - L + 1
+    blocks <- sapply(1:max.index, collapser)
+    return(blocks)
+}
+
+succ.pairs <- symbseq.to.blocks(dicty$V1, 2)
+succ.pairs.table <- table(succ.pairs)
+```
+```{r}
+kable(succ.pairs.table,
+      caption = "Counts of all successive pairs of bases",
+      longtable = TRUE)
+```
+
+## Question 3
+
+```{r}
+bases = c("A", "C", "G", "N", "T")
+counts <- matrix(succ.pairs.table, nrow = 5, ncol = 5, byrow = TRUE)
+colnames(counts) <- bases
+rownames(counts) <- bases
+q <- matrix(nrow = 5, ncol = 5)
+colnames(q) <- bases
+rownames(q) <- bases
+
+for (i in bases) {
+    total <- sum(counts[i, ])
+    q[i, ] <- counts[i, ] / total
+}
+kable(q, digits = 5,
+      caption = "Transition Matrix of First-Order Markov Chain",
+      longtable = TRUE)
+```
+
+## Question 4
+
+```{r}
+p.init <- table.dicty / sum(table.dicty)
+n <- nrow(dicty)
+log.likelihood.1 <- log(p.init[dicty$V1[1]]) + sum(counts * log(q))
+```
+
+The log-likelihood of the estimated first-order Markov chain is $`r signif(log.likelihood.1, 5)`$.
+
+## Question 5
+
+```{r}
+q.upper <- matrix(nrow = 5, ncol = 5)
+colnames(q.upper) <- bases
+rownames(q.upper) <- bases
+q.lower <- matrix(nrow = 5, ncol = 5)
+colnames(q.lower) <- bases
+rownames(q.lower) <- bases
+for (i in bases) {
+    q.upper[i, ] <- qbinom(p = 0.975, size = table.dicty[i], prob = q[i, ])
+    q.upper[i, ] <- q.upper[i, ] / sum(counts[i, ])
+    q.lower[i, ] <- qbinom(p = 0.025, size = table.dicty[i], prob = q[i, ])
+    q.lower[i, ] <- q.lower[i, ] / sum(counts[i, ])
+}
+
+```
+The upper and lower bounds of 95% C.I. for each entry in the transition matrix is as follows:
+```{r}
+kable(q.upper, "markdown", digits = 5,
+      caption = "Upper bound of 95% C.I. of transition matrix")
+
+kable(q.lower, "markdown", digits = 5,
+      caption = "Lower bound of 95% C.I. of transition matrix")
+```
+
+These intervals seem unusually small, being very tight.
+
+
+## Question 6
+
+```{r}
+q.L.eigen <- eigen(t(q))
+results <- matrix(c(Re(q.L.eigen$vectors[, 1] / sum(q.L.eigen$vectors[, 1])),
+                    p.init),
+                  ncol = 2, nrow = 5)
+colnames(results) <- c("Invariant Dist.", "Overall Dist.")
+rownames(results) <- bases
+kable(results, digits = 5,
+      caption = "Distributions of the Markov chain",
+      longtable = TRUE)
+```
+
+From the above table, we can see that the distributions are approximately the same.
+
+\newpage
+
+## Question 7
+
+```{r cache = TRUE}
+succ.triples <- symbseq.to.blocks(dicty$V1, 3)
+succ.triples.table <- table(succ.triples)
+
+bases.pairs <- c(t(outer(bases, bases, paste, sep = "")))
+q <- matrix(nrow = 25, ncol = 25)
+q[, ] <- 0
+colnames(q) <- bases.pairs
+rownames(q) <- bases.pairs
+
+for (ij in bases.pairs) {
+    total <- sum(succ.triples.table[paste(ij, bases, sep = "")], na.rm = TRUE)
+    for (k in bases) {
+        jk <- paste(substr(ij, 2, 2), k, sep = "")
+        ijk <- paste(ij, k, sep = "")
+        if (ijk %in% names(succ.triples.table)) {
+            q[ij, jk] <- succ.triples.table[ijk] / total
+        }
+    }
+}
+```
+```{r}
+kable(q, "latex",
+      caption = "Transition Matrix of Second-Order Markov Chain",
+      digits = 2) %>%
+    kable_styling(latex_options = c("scale_down", "hold_position"))
+    
+```
+
+## Question 8
+
+```{r}
+counts <- matrix(nrow = 25, ncol = 25)
+counts[, ] <- 0
+colnames(counts) <- bases.pairs
+rownames(counts) <- bases.pairs
+for (triple in names(succ.triples.table)) {
+    ij <- substr(triple, 1, 2)
+    jk <- substr(triple, 2, 3)
+    counts[ij, jk] <- succ.triples.table[triple]
+}
+
+# Can use na.rm as we only want to sum over valid combinations of ijk only
+log.likelihood.2 <- log(p.init[dicty$V1[1]]) + sum(counts * log(q), na.rm = TRUE)
+```
+
+The log-likelihood of the estimated second-order Markov chain is $`r signif(log.likelihood.2, 5)`$.
+
+## Question 9
+
+```{r}
+test.stat <- 2 * (log.likelihood.2 - log.likelihood.1)
+dof <- 5 * 5 * 4 - 5 * 4
+p.value <- pchisq(test.stat, df = dof, lower.tail = FALSE)
+```
+
+We test:
+\begin{align}
+H_0: \text{The model is a first-order Markov chain} \\
+H_a: \text{The model is a second-order Markov chain}
+\end{align}
+
+Our test statistic is $`r signif(test.stat, 5)`$, which follows a $\chi^2$ distribution with degrees of freedom `r dof`. This gives us a p-value very close to $`r signif(p.value, 5)`$, hence we reject $H_0$ and conclude that there is sufficient evidence that the model is actually a second-order Markov chain.
+
+## Question 10
+
+```{r cache = TRUE}
+dicty.2 <- read.table("http://www.stat.cmu.edu/~cshalizi/dst/18/hw/12/dicty-seq-2.dat")
+
+succ.pairs.2 <- symbseq.to.blocks(dicty.2$V1, 2)
+succ.pairs.table.2 <- table(succ.pairs.2)
+counts <- matrix(succ.pairs.table.2, nrow = 5, ncol = 5, byrow = TRUE)
+colnames(counts) <- bases
+rownames(counts) <- bases
+q <- matrix(nrow = 5, ncol = 5)
+colnames(q) <- bases
+rownames(q) <- bases
+
+for (i in bases) {
+    total <- sum(counts[i, ])
+    q[i, ] <- counts[i, ] / total
+}
+
+q.upper <- matrix(nrow = 5, ncol = 5)
+colnames(q.upper) <- bases
+rownames(q.upper) <- bases
+q.lower <- matrix(nrow = 5, ncol = 5)
+colnames(q.lower) <- bases
+rownames(q.lower) <- bases
+for (i in bases) {
+    q.upper[i, ] <- qbinom(p = 0.975, size = table.dicty[i], prob = q[i, ])
+    q.upper[i, ] <- q.upper[i, ] / sum(counts[i, ])
+    q.lower[i, ] <- qbinom(p = 0.025, size = table.dicty[i], prob = q[i, ])
+    q.lower[i, ] <- q.lower[i, ] / sum(counts[i, ])
+}
+```
+```{r}
+kable(q, digits = 5,
+      caption = "Transition Matrix of First-Order Markov Chain for Second set of Chromosomes",
+      longtable = TRUE)
+```
+The upper and lower bound of the 95% C.I. for each entry in the transition matrix is as follows:
+```{r}
+kable(q.upper, "markdown", digits = 5,
+      caption = "Upper bound of 95% C.I. of transition matrix")
+
+kable(q.lower, "markdown", digits = 5,
+      caption = "Lower bound of 95% C.I. of transition matrix")
+```
+
+
+## Question 11
+```{r}
+table.dicty.2 <- table(dicty.2)
+p.init.2 <- table.dicty.2 / sum(table.dicty.2)
+n.2 <- nrow(dicty.2)
+log.likelihood.3 <- log(p.init.2[dicty.2$V1[1]]) + sum(counts * log(q))
+log.likelihood.sum <- log.likelihood.1 + log.likelihood.3
+```
+
+The log-likelihood of the first-order Markvoc chain for the second set of chromosomes is $`r signif(log.likelihood.3, 5)`$. The total log-likelihood of the first-order Markov chains of both sets of chromosomes is $`r signif(log.likelihood.sum, 5)`$.
+
+## Question 12
+```{r cache = TRUE}
+counts <- matrix(succ.pairs.table + succ.pairs.table.2, nrow = 5, ncol = 5, byrow = TRUE)
+colnames(counts) <- bases
+rownames(counts) <- bases
+q <- matrix(nrow = 5, ncol = 5)
+colnames(q) <- bases
+rownames(q) <- bases
+
+for (i in bases) {
+    total <- sum(counts[i, ])
+    q[i, ] <- counts[i, ] / total
+}
+```
+```{r}
+kable(q,
+      caption = "Transition Matrix of First-Order Markov Chain for both chromosomes",
+      longtable = TRUE)
+```
+
+## Question 13
+
+```{r}
+p.init.pooled <- (table.dicty + table.dicty.2) / sum(table.dicty + table.dicty.2)
+n.2 <- nrow(dicty) + nrow(dicty.2)
+# Since both start with "N", we can use that as the initial
+log.likelihood.3 <- log(p.init.pooled[dicty$V1[1]]) + sum(counts * log(q))
+```
+
+The log-likelihood for the pooled fisrt-order Markov chain is $`r signif(log.likelihood.3, 5)`$.
+
+## Question 14
+
+```{r}
+test.stat <- 2 * (log.likelihood.sum - log.likelihood.3)
+dof <- 2 * 5 * 4 - 5 * 4
+p.value <- pchisq(test.stat, df = dof, lower.tail = FALSE)
+```
+
+We test:
+\begin{align}
+H_0: \text{Both sets of chromosomes are modelled with a shared first-order Markov chain} \\
+H_a: \text{Both sets of chromosomes are individually modelled with first-order Markov chains}
+\end{align}
+
+Our test statistic is $`r signif(test.stat, 5)`$, which follows a $\chi^2$ distribution with degrees of freedom `r dof`. This gives us a p-value of $`r signif(p.value, 5)`$ which is close to 0, hence we reject $H_0$ at 0.05 significance and conclude that there is sufficient evidence that both sets of chromosomes can actually be modelled with a shared first-order Markov chain.
