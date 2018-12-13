@@ -1,0 +1,357 @@
+---
+title: "36-467 Final Exam"
+author:
+- Eu Jing Chua
+- eujingc
+date: "December 11, 2018"
+output:
+  pdf_document: default
+header-includes:
+    - \usepackage{enumerate}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\est}[1]{\hat{#1}}
+\newcommand{\betah}[1]{\est{\beta_{#1}}}
+\newcommand{\avg}[1]{\overline{#1}}
+\newcommand{\E}[1]{\mathbb{E} \left[ #1 \right]}
+\newcommand{\Var}[1]{\text{Var} \left[ #1 \right]}
+\newcommand{\Cov}[1]{\text{Cov} \left[ #1 \right]}
+\newcommand{\X}{\mathbb{X}}
+\newcommand{\sumTo}[1]{\sum^{#1}_{i=1}}
+\newcommand{\sumjTo}[1]{\sum^{#1}_{j=1}}
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+## Question 0
+
+```{r echo = TRUE}
+lsial <- read.csv("http://www.stat.cmu.edu/~cshalizi/dst/18/exams/2/sial.csv")
+rownames(lsial) <- lsial$X
+lsial$X <- NULL
+lsial[1:25, ] <- log(lsial[1:25, ])
+```
+
+## Question 1
+
+\begin{align}
+S_i(t + 1) &= g + S_i(t) + \eta_i(t + 1) \\
+\log N_i(t + 1) &= g + \log N_i(t) + \eta_i(t + 1) \\
+N_i(t + 1) &= e^{g + \log N_i(t) + \eta_i(t + 1)} \\
+    &= N_i(t) e^{g + \eta_i(t + 1)} \\
+\frac{N_i(t + 1)}{N_i(t)} &= g + \eta_i(t + 1) \\
+N_i(t) &= N_i(0) e^{(g + \eta_i(t))t} \\
+    &= N_i(0) (1 + r(t))^t
+\end{align}
+
+As we can see above, the population size for territory $i$ at $N_i(t)$ is of the form of an exponential growth, with the growth rate being $r(t) = 1 - e^{g + \eta_i(t)}$, or $r = 1 - e^g$ on average.
+
+## Question 2
+
+Let $\log E_i(t) = R_i(t)$, where $E_i(t)$ is the number of slaves exported from territory $i$.
+
+\begin{align}
+R_i(t) &= c + S_i(t) + \phi_i(t) \\
+\log E_i(t) &= c + \log N_i(t) + \phi_i(t) \\
+\log \frac{E_i(t)}{N_i(t)} &= c + \phi_i(t) \\
+\frac{E_i(t)}{N_i(t)} &= e^{c + \phi_i(t)}
+\end{align}
+
+We can see that on average, the trend for exported slaves follows a fixed proportion of the total population, with proportion $\frac{E_i(t)}{N_i(t)} = e^{c + \phi(t)}$, or $\frac{E_i(t)}{N_i(t)} = e^{c}$ on average.
+
+## Question 3
+
+Let $M_{rel, i}$ be the reported relative error margin and $E_{obs, i}(t)$ be the observed number of slaves exported from territory $i$.
+\begin{align}
+1 - M_{rel, i} \le &\frac{E_{obs, i}(t)}{E_{i}(t)} \le 1 + M_{rel, i} \\
+\log(1 - M_{rel, i}) \le &\log(E_{obs, i}(t)) - \log(E_{i}(t)) \le \log(1 + M_{rel, i}) \\
+\log(1 - M_{rel, i}) \le &X_i(t) - R_i(t) \le \log(1 + M_{rel, i})
+\end{align}
+
+We can then use the approximation that if $|a| \ll 1, \log (b(1 + a)) \approx \log (b) + a$ to get
+\begin{align}
+\log(1) - M_{rel, i} \le &X_i(t) - R_i(t) \le \log(1) + M_{rel, i} \\
+- M_{rel, i} \le &\epsilon_i(t) \le M_{rel, i} \\
+\end{align}
+
+Thus $M_{rel, i}$ approximates the standard error of $\epsilon_i(t)$.
+
+## Question 4
+
+**a)**
+\begin{align}
+\Cov{S_i(t), X_i(t)} &= \Cov{S_i(t), R_i(t) + \epsilon_i(t)} \\
+    &= \Cov{S_i(t), R_i(t)} +\Cov{S_i(t), \epsilon_i(t)}  \\
+    &= \Cov{S_i(t), c + S_i(t) + \phi_i(t)} + 0 \\
+    &= \Cov{S_i(t), c} + \Cov{S_i(t), S_i(t)} + \Cov{S_i(t), \phi_i(t)} \\
+    &= \Var{S_i(t)}
+\end{align}
+
+**b)**
+\begin{align}
+\E{X_i(t)} &= \E{R_i(t) + \epsilon_i(t)} \\
+    &= \E{R_i(t)} \\
+    &= \E{c + S_i(t) + \phi_i(t)} \\
+    &= \E{S_i(t)} + c
+\end{align}
+
+**c)**
+
+The optimal linear predictor of $S_i(t)$ from $X_i(t)$ follows the form:
+\begin{align}
+\est{S}_i(t) &= \alpha + \beta X_i(t) \\
+    &= \E{S_i(t)} + \left( \frac{\Cov{X_i(t), S_i(t)}}{\Var{X_i(t)}} \right) (X_i(t) - \E{X_i(t)})
+\end{align}
+where
+\begin{align}
+\Var{X_i(t)} &= \Var{R_i(t) + \epsilon_i(t)} \\
+    &= \Var{c + S_i(t) + \phi_i(t)} + \sigma_\epsilon^2 \\
+    &= \Var{S_i(t)} + \sigma_\phi^2 + \sigma_\epsilon^2
+\end{align}
+so the optimal linear predictor is
+\begin{align}
+\est{S}_i(t) &= \E{S_i(t)} + \left( \frac{\Cov{X_i(t), S_i(t)}}{\Var{X_i(t)}} \right) (X_i(t) - \E{X_i(t)}) \\
+    &= \E{S_i(t)} + \left( \frac{\Var{S_i(t)}}{\Var{S_i(t)} + \sigma_\phi^2 + \sigma_\epsilon^2} \right) (X_i(t) - \E{S_i(t)} - c)
+\end{align}
+
+## Question 5
+
+**a)**
+\begin{align}
+\Cov{S_i(t), S_i(t + h)} &= \Cov{S_i(t), hg + S_i(t) + \sumjTo{h} \eta_i(t + j)} \\
+    &= \Var{S_i(t)} + \sumjTo{h} \Cov{S_i(t), \eta_i(t + j)} \\
+    &= \Var{S_i(t)}
+\end{align}
+
+**b)**
+\begin{align}
+\Cov{S_i(t), X_i(t + h)} &= \Cov{S_i(t), R_i(t + h) + \epsilon(t + h)} \\
+    &= \Cov{S_i(t), R_i(t + h)} + 0 \\
+    &= \Cov{S_i(t), c + S_i(t + h) + \phi_i(t + h)} \\
+    &= 0 + \Cov{S_i(t), S_i(t + h)} + 0 \\
+    &= \Cov{S_i(t), S_i(t + h)} \\
+    &= \Var{S_i(t)}
+\end{align}
+
+**c)**
+\begin{align}
+\Cov{X_i(t), X_i(t + h)} &= \Cov{R_i(t) + \epsilon_i(t), X_i(t + h)} \\
+    &= \Cov{R_i(t), X_i(t + h)} + 0 \\
+    &= \Cov{c + S_i(t) + \phi_i(t), X_i(t + h)} \\
+    &= 0 + \Cov{S_i(t), X_i(t + h)} + 0 \\
+    &= \Var{S_i(t)}
+\end{align}
+
+**d)**
+\begin{align}
+\Var{S_i(t)} &= \Var{tg + S_i(0) + \sumjTo{t} \eta_i(j)} \\
+    &= \Var{S_i(0)} + \sumjTo{t} \Var{\eta_i(j)} \\
+    &= \Var{S_i(0)} + t \sigma_\eta^2
+\end{align}
+
+**e)**
+\begin{align}
+\Var{X_i(t)} &= \Var{R_i(t) + \epsilon_i(t)} \\
+    &= \Var{c + S_i(t) + \phi_i(t) + \epsilon_i(t)} \\
+    &= \Var{S_i(t)} + \Var{\phi_i(t)} + \Var{\epsilon_i(t)} \\
+    &= \Var{S_i(0)} + t \sigma_\eta^2 + \sigma_\phi^2 + \sigma_\epsilon^2
+\end{align}
+
+**f)**
+\begin{align}
+\E{S_i(t)} &= \E{tg + S_i(0) + \sumjTo{t} \eta_i(j)} \\
+    &= gt + \E{S_i(0)} + \sumjTo{t} \E{\eta_i(j)} \\
+    &= \E{S_i(0)} + gt
+\end{align}
+
+**g)**
+\begin{align}
+\E{X_i(t)} &= \E{c + S_i(t) + \phi_i(t) + \epsilon_i(t)} \\
+    &= c + \E{S_i(t)} + 0 + 0 \\
+    &= \E{S_i(0)} + gt + c
+\end{align}
+
+## Question 6
+
+```{r echo = TRUE}
+# Finds the smoothed value of S_i at time t using the optimal linear prediction from
+# n observations of X_i
+#
+# t: Time to get prediction of S_i for
+# obs: Observations of X_i to predict from
+# vs0: Variance of S_i(0)
+# sig.eta: Std. dev. of eta
+# sig.phi: Std. dev. of phi
+# sig.eps: Std. dev. of eps
+# g: Constant term in growth of S_i
+# c: Constant term in growth of R_i
+# Returns: Smoothed value of S_i(t)
+
+smoother <- function(t, obs, vs0, sig.eta, sig.phi, sig.eps, g, c) {
+    n <- length(obs)
+    x <- head(obs, -1)
+    sfinal <- tail(obs, 1)
+
+    # Variance of S from t = 1 to n
+    # Var[S_i(1:n)] = Var[S_i(0)] + (1:n) * sig.eta^2
+    vs <- vs0 + (1:n)*sig.eta^2
+
+    # Variance of each observed X from t = 1 to n
+    # Var[X_i(1:n)] = Var[S_i(1:n)] + sig.phi^2 + sig.eps^2
+    vx <- vs + sig.phi^2 + sig.eps^2
+
+    # Variance matrix of X
+    # Non-diagonal entries of Var[X] are Cov[X_i(s), X_i(s + h)]
+    vobs <- outer(1:n, 1:n, function(x,y) { vs[pmin(x,y)] })
+    # Diagonal entries of Var[X] are Var[X_i(s)] (h = 0)
+    diag(vobs) <- vx
+    # ???
+    diag(vobs)[n] <- vs[n]
+
+    # Covariance vector between each observed X and S_i(t)
+    # Cov[X, S]
+    C <- matrix(vs[pmin(t,1:n)], nrow=n, ncol=1)
+
+    # Slope of the multivariate optimal linear predictor
+    beta <- solve(vobs) %*% C
+
+    # Expected value of S_i(t)
+    # E[S_i(t)] = E[S_i(0)] + g * t, assumes E[S_i(0)] to be 0
+    es <- t*g
+
+    # Expected value of observed X
+    # E[X_i(1:n)] = E[S_i(0)] + (1:n) * g + c, assumes E[S_i(0)] to be 0
+    ex <- (1:n)*g + c
+    eobs <- ex
+    # ???
+    eobs[n] <- n*g
+
+    # Intercept of multivariate optimal linear predictor
+    alpha <- es - eobs %*% beta
+
+    # Prediction from multivariate optimal linear predictor
+    return(alpha + obs %*% beta)
+}
+
+# Applies smoother to each observation of X_i we have to get corresponding smoothed
+# and optimal linear predictions of S_i from all n observations of X_i
+simultaneous.smoother <- function(obs, vs0, sig.eta, sig.phi, sig.eps, g, c) {
+    n <- length(obs)
+    sapply(1:n, smoother, obs=obs, vs0=vs0, sig.eta=sig.eta, sig.phi=sig.phi,
+           sig.eps=sig.eps, g=g, c=c)
+}  
+```
+
+## Question 7
+
+```{r}
+library(latex2exp)
+
+obs.idx <- 1:24
+err.margin.idx <- 26
+
+obs.akan <- lsial[obs.idx, 9]
+sig.eps.akan <- lsial[err.margin.idx, 9]
+
+S.akan <- simultaneous.smoother(obs.akan, 0, 0.05, 0.15, sig.eps.akan, log(1 + 0.002), log(0.01))
+plot(seq(1650, 1880, 10), exp(S.akan),
+     type = "o",
+     xlab = "Year", ylab = TeX("Smoothed e^{S_i(t)}"),
+     main = TeX("Plot of Smoothed e^{S_i(t)} against Year"))
+
+c.variations <- c(0.001, 0.005, 0.01, 0.05, 0.1)
+S.akan.variations <- matrix(ncol = length(c.variations), nrow = 24)
+for (i in 1:length(c.variations)) {
+    S.akan.variations[, i] <- simultaneous.smoother(obs.akan, 0, 0.05, 0.15, sig.eps.akan,
+                                                    log(1 + 0.002), log(c.variations[i]))
+}
+matplot(seq(1650, 1880, 10), apply(S.akan.variations, 2, exp),
+     type = "o", pch = 1, lty = 1:2, col = topo.colors(5),
+     xlab = "Year", ylab = TeX("Smoothed e^{S_i(t)}"),
+     main = TeX("Plot of Smoothed e^{S_i(t)} against Year"))
+legend("topleft",
+       legend = paste("c =", c.variations),
+       lty = 1:2, pch = 1,
+       col = topo.colors(5))
+```
+
+The results look sensible. It seems that as we decrease $c$, the population numbers stay higher across the years, while increasing $c$ causes the population numbers to stay lower across the years. The peak in population is also much more dramatic for lower values of $c$ as compared to higher values of $c$.
+
+## Question 8
+
+```{r}
+vst <- apply(lsial[1:24,], 1, function(x) {var(as.numeric(x) - as.numeric(lsial["exportErrorMargin",])) })
+# decades <- seq(from=1650, to=1880, by=10)
+decades <- 1:length(vst)
+vst.vs.t <- lm(vst ~ decades)
+vs0 <- coefficients(vst.vs.t)[1]
+sig.eta <- sqrt(coefficients(vst.vs.t)[2])
+```
+
+It assumes $\Var{S_i(0)} \ne 0$ and it is the same across all territories, $\Var{S_i(0)} = \sigma_0^2 \hspace{0.1in} \forall i$.
+
+## Question 9
+
+```{r}
+plot(vst ~ decades,
+     xlab = "Years", ylab = TeX("Var\\[S_i(t)\\]"),
+     main = TeX("Plot of Var\\[S_i(t)\\] against Years"))
+abline(vst.vs.t, col = "red")
+```
+
+From the scatter plot, we can see that there seems to be an approximate linear trend in the earlier years, from 1650 to 1800. However, this  trend drops off from 1810 onwards, no longer resembling a continuation of the early linear trend. Hence we choose to refit a linear trend to just the earlier years, from 1650 to 1800:
+
+```{r}
+library(knitr)
+
+# earlier.decades <- seq(from = 1650, to = 1800, by = 10)
+earlier.decades <- 1:16
+vst.vs.t.new <- lm(vst[1:length(earlier.decades)] ~ earlier.decades)
+vs0 <- coefficients(vst.vs.t.new)[1]
+sig.eta <- sqrt(coefficients(vst.vs.t.new)[2])
+
+plot(vst ~ decades,
+     xlab = "Years", ylab = TeX("Var\\[S_i(t)\\]"),
+     main = TeX("Plot of Var\\[S_i(t)\\] against Years"))
+abline(vst.vs.t.new, col = "red")
+
+results <- c(vs0, sig.eta)
+names(results) <- c("$\\Var{S_i(0)}$", "$\\sigma_\\eta$")
+kable(results, digits = 3,
+      caption = "Estimates")
+```
+
+## Question 10
+
+```{r}
+territory.idx <- c(12, 6, 9, 13)
+S <- matrix(ncol = 4, nrow = 24)
+for (i in 1:length(territory.idx)) {
+    terr.idx <- territory.idx[i]
+    S[, i] <- simultaneous.smoother(lsial[obs.idx, terr.idx], vs0, sig.eta, 0.15,
+                                    lsial[err.margin.idx, terr.idx], log(1.002), log(0.01))
+}
+matplot(seq(1650, 1880, 10), apply(S, 2, exp),
+        xlab = "Year", ylab = "Population Size Estimate",
+        main = "Population Size Estimates against Year",
+        pch = 1, lty = 1:2, type = "o", col = rainbow(length(territory.idx)))
+legend("topright",
+       legend = c("S. Dahomey", "Sierra Leone", "Akan", "W. Nigeria"),
+       lty = 1:2, pch = 1, col = rainbow(length(territory.idx)))
+```
+
+## Question 11
+
+```{r echo = TRUE}
+internal.jitter <- function(data) {
+    jitter <- function(x) { rnorm(n=length(x)-2, mean=head(x,-2),
+                                  sd=x["exportErrorMargin"]) }
+    data[1:(nrow(data)-2),] <- apply(data, 2, jitter)
+    return(data)
+}
+```
+
+
+The code above simulates the noise from measuring $R_i(t)$ to get an observed $X_i(t)$, hence it implements the simulation of $\epsilon_i(t)$. Assuming the measurement noise is reasonably modelled as gaussian, this would give us a good idea of the uncertainty in the estimates that will be consistent with the reported error margins.
